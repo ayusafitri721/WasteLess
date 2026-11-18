@@ -1,0 +1,1867 @@
+openapi: 3.0.3
+info:
+  title: WasteLess API
+  version: 0.1.0
+  description: |
+    REST API untuk platform WasteLess: menghubungkan penyedia makanan
+    berlebih dengan penerima yang terverifikasi.
+
+    Autentikasi menggunakan JWT Bearer. Ambil token dari `POST /auth/login`,
+    lalu kirim header `Authorization: Bearer <token>`.
+
+    Semua data operasional berasal dari MongoDB. Endpoint yang membutuhkan
+    peran tertentu akan membalas `403` bila peran tidak sesuai. Endpoint
+    dengan aturan transisi status akan membalas `409` bila transisi tidak
+    diizinkan.
+
+    Job internal berjalan setiap `EXPIRATION_JOB_INTERVAL_MS` (default 60 detik)
+    untuk menandai listing dan reservasi aktif yang melewati batas pengambilan
+    atau tanggal kedaluwarsa. Job ini idempotent dan tidak memakai endpoint
+    publik.
+  contact:
+    name: WasteLess
+servers:
+  - url: /api
+    description: Server API aktif
+tags:
+  - name: Health
+    description: Status layanan
+  - name: Auth
+    description: Registrasi, login, logout
+  - name: Users
+    description: Profil pengguna
+  - name: Verifications
+    description: Pengajuan verifikasi akun
+  - name: Admin
+    description: Pengelolaan verifikasi oleh admin
+  - name: Foods
+    description: Listing makanan
+  - name: Reservations
+    description: Reservasi dan pengendalian stok
+  - name: Distributions
+    description: Verifikasi pengambilan dan penyelesaian distribusi
+  - name: Analytics
+    description: Ringkasan dampak dari transaksi nyata
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Status API dan koneksi database
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Layanan berjalan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi akun provider atau receiver
+      description: |
+        Membuat akun baru. Peran `admin` tidak dapat didaftarkan lewat endpoint
+        ini. Untuk `receiver`, `organizationName` wajib diisi. Password
+        disimpan sebagai hash bcrypt.
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Akun berhasil dibuat (tanpa token; lanjutkan dengan login)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login dan dapatkan access token
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Email atau password salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout dan cabut token yang ada
+      description: |
+        Menaikkan `tokenVersion` pengguna sehingga semua access token yang
+        pernah diterbitkan untuk akun ini tidak berlaku lagi.
+      operationId: logout
+      responses:
+        '204':
+          description: Logout berhasil
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil pengguna yang sedang login
+      operationId: getAuthMe
+      responses:
+        '200':
+          description: Profil pengguna
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Melihat profil sendiri
+      operationId: getMyProfile
+      responses:
+        '200':
+          description: Profil pengguna
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Users]
+      summary: Memperbarui profil sendiri
+      description: |
+        Hanya `name`, `phone`, `organizationName`, dan `location` yang dapat
+        diubah. Email, peran, dan status verifikasi tidak dapat diubah lewat
+        endpoint ini.
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /verifications:
+    post:
+      tags: [Verifications]
+      summary: Mengajukan verifikasi akun
+      description: |
+        Hanya untuk `provider` dan `receiver`. Akun yang sudah `verified` atau
+        masih `pending` akan ditolak dengan `409`. Pengajuan yang ditolak boleh
+        diajukan ulang.
+      operationId: submitVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitVerificationRequest'
+      responses:
+        '201':
+          description: Pengajuan dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /admin/verifications:
+    get:
+      tags: [Admin]
+      summary: Daftar pengajuan verifikasi
+      description: Hanya admin. Default menampilkan pengajuan `pending`.
+      operationId: listVerifications
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar pengajuan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /admin/verifications/{id}:
+    patch:
+      tags: [Admin]
+      summary: Menyetujui atau menolak pengajuan verifikasi
+      description: |
+        Hanya admin. `reviewNote` wajib diisi saat menolak. Pengajuan yang
+        sudah diproses tidak dapat diproses ulang.
+      operationId: decideVerification
+      parameters:
+        - $ref: '#/components/parameters/VerificationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideVerificationRequest'
+      responses:
+        '200':
+          description: Keputusan disimpan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /foods:
+    post:
+      tags: [Foods]
+      summary: Membuat listing makanan
+      description: |
+        Hanya `provider` dengan status verifikasi `verified`. `availableQuantity`
+        diisi otomatis sama dengan `quantity`; klien tidak boleh mengirim stok
+        atau status.
+      operationId: createFood
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFoodRequest'
+      responses:
+        '201':
+          description: Listing dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Foods]
+      summary: Mencari listing yang tersedia
+      description: |
+        Menampilkan listing berstatus `available` yang belum melewati
+        `pickupDeadline`. Filter kategori dan kata kunci mendukung pencarian
+        pada nama dan deskripsi.
+      operationId: listFoods
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/FoodCategory'
+        - name: q
+          in: query
+          required: false
+          description: Kata kunci nama atau deskripsi (maksimal 100 karakter)
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar listing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /foods/mine:
+    get:
+      tags: [Foods]
+      summary: Listing milik provider yang sedang login
+      description: Hanya provider. Menampilkan semua status.
+      operationId: listMyFoods
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/FoodStatus'
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/FoodCategory'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar listing milik provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /foods/{id}:
+    get:
+      tags: [Foods]
+      summary: Detail listing
+      description: |
+        Listing `available` yang belum lewat deadline dapat dilihat semua
+        pengguna login. Status lain hanya dapat dilihat pemilik dan admin;
+        pihak lain mendapat `404`.
+      operationId: getFood
+      parameters:
+        - $ref: '#/components/parameters/FoodId'
+      responses:
+        '200':
+          description: Detail listing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Foods]
+      summary: Memperbarui listing
+      description: |
+        Hanya pemilik. Hanya saat status `available` dan tidak ada reservasi
+        aktif. `quantity`, `availableQuantity`, `status`, dan `providerId`
+        tidak dapat diubah lewat endpoint ini.
+      operationId: updateFood
+      parameters:
+        - $ref: '#/components/parameters/FoodId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFoodRequest'
+      responses:
+        '200':
+          description: Listing diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Foods]
+      summary: Menutup listing
+      description: |
+        Menutup listing dengan mengubah status menjadi `cancelled` (tidak
+        menghapus riwayat). Hanya pemilik, hanya saat `available`, dan ditolak
+        bila masih ada reservasi aktif.
+      operationId: cancelFood
+      parameters:
+        - $ref: '#/components/parameters/FoodId'
+      responses:
+        '200':
+          description: Listing ditutup
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /reservations:
+    post:
+      tags: [Reservations]
+      summary: Membuat reservasi
+      description: |
+        Hanya `receiver` terverifikasi. Stok dikurangi secara atomik; bila stok
+        tidak mencukupi, listing tidak tersedia, atau deadline/expiry sudah
+        lewat, permintaan ditolak dengan `409`.
+      operationId: createReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Reservasi dibuat dengan status `pending`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /reservations/my:
+    get:
+      tags: [Reservations]
+      summary: Riwayat reservasi pengguna
+      description: |
+        Receiver melihat reservasi yang ia ajukan; provider melihat reservasi
+        masuk untuk listing miliknya; admin melihat semua.
+      operationId: listMyReservations
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReservationStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar reservasi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /reservations/{id}:
+    get:
+      tags: [Reservations]
+      summary: Detail reservasi
+      description: Hanya pihak terkait (provider, receiver) dan admin.
+      operationId: getReservation
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      responses:
+        '200':
+          description: Detail reservasi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /reservations/{id}/approve:
+    patch:
+      tags: [Reservations]
+      summary: Menyetujui reservasi
+      description: |
+        Hanya provider pemilik listing dan hanya saat status `pending`. Jadwal
+        pengambilan dapat ditentukan di sini.
+      operationId: approveReservation
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveReservationRequest'
+      responses:
+        '200':
+          description: Reservasi disetujui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /reservations/{id}/reject:
+    patch:
+      tags: [Reservations]
+      summary: Menolak reservasi
+      description: |
+        Hanya provider pemilik listing dan hanya saat status `pending`. Stok
+        dikembalikan tepat satu kali.
+      operationId: rejectReservation
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectReservationRequest'
+      responses:
+        '200':
+          description: Reservasi ditolak
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /reservations/{id}/cancel:
+    patch:
+      tags: [Reservations]
+      summary: Membatalkan reservasi
+      description: |
+        Receiver dapat membatalkan saat `pending` atau `approved`. Provider
+        dapat membatalkan saat `approved`. Stok dikembalikan tepat satu kali.
+      operationId: cancelReservation
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelReservationRequest'
+      responses:
+        '200':
+          description: Reservasi dibatalkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /reservations/{id}/ready:
+    patch:
+      tags: [Reservations]
+      summary: Menandai reservasi siap diambil
+      description: |
+        Hanya provider pemilik dan hanya saat status `approved` serta
+        `pickupSchedule` sudah ada. Membuat catatan distribusi dan
+        mengembalikan kode pengambilan 6 digit **satu kali**. Kode disimpan
+        sebagai hash dan harus diberikan provider kepada receiver saat serah
+        terima.
+      operationId: markReservationReady
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      responses:
+        '200':
+          description: Reservasi siap diambil dan distribusi dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyForPickupResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /distributions/history:
+    get:
+      tags: [Distributions]
+      summary: Riwayat distribusi
+      description: |
+        Receiver melihat distribusi miliknya; provider melihat distribusi
+        listing miliknya; admin melihat semua.
+      operationId: listDistributionHistory
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DistributionStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar distribusi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistributionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /distributions/{id}/verify-pickup:
+    patch:
+      tags: [Distributions]
+      summary: Memverifikasi pengambilan dengan kode
+      description: |
+        Hanya provider terkait, saat status distribusi `pickup_ready`.
+        Kode sekali pakai; setelah berhasil, reservasi menjadi `picked_up`.
+        Dibatasi 10 percobaan per 15 menit.
+      operationId: verifyPickup
+      parameters:
+        - $ref: '#/components/parameters/DistributionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPickupRequest'
+      responses:
+        '200':
+          description: Pengambilan terverifikasi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistributionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /distributions/{id}/complete:
+    patch:
+      tags: [Distributions]
+      summary: Menyelesaikan distribusi
+      description: |
+        Hanya receiver terkait, setelah status distribusi `verified`. Reservasi
+        menjadi `completed`; listing menjadi `completed` bila stok habis dan
+        tidak ada reservasi aktif lain.
+      operationId: completeDistribution
+      parameters:
+        - $ref: '#/components/parameters/DistributionId'
+      responses:
+        '200':
+          description: Distribusi selesai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistributionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /analytics/provider:
+    get:
+      tags: [Analytics]
+      summary: Analitik dampak penyedia
+      description: |
+        Dihitung langsung dari listing, reservasi, dan distribusi milik
+        provider. Kuantitas hanya menjumlahkan distribusi berstatus
+        `completed`, dikelompokkan per satuan.
+      operationId: getProviderAnalytics
+      responses:
+        '200':
+          description: Ringkasan dampak penyedia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAnalyticsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/receiver:
+    get:
+      tags: [Analytics]
+      summary: Analitik dampak penerima
+      description: |
+        Dihitung dari reservasi dan distribusi milik receiver. Kuantitas hanya
+        menjumlahkan distribusi berstatus `completed`.
+      operationId: getReceiverAnalytics
+      responses:
+        '200':
+          description: Ringkasan dampak penerima
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiverAnalyticsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /analytics/platform:
+    get:
+      tags: [Analytics]
+      summary: Analitik platform
+      description: |
+        Ringkasan seluruh pengguna, listing, reservasi, dan distribusi.
+        Hanya dapat diakses admin.
+      operationId: getPlatformAnalytics
+      responses:
+        '200':
+          description: Ringkasan dampak platform
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformAnalyticsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token dari `POST /auth/login`
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    VerificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    FoodId:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    ReservationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    DistributionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+  responses:
+    Unauthorized:
+      description: Token tidak ada, tidak valid, kedaluwarsa, atau sudah dicabut
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Peran atau kepemilikan resource tidak sesuai
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource tidak ditemukan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Status atau aturan bisnis tidak mengizinkan aksi
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Kode atau format permintaan tidak valid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Validasi input gagal
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Terlalu banyak percobaan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[a-fA-F0-9]{24}$'
+      example: 507f1f77bcf86cd799439011
+    GeoPoint:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Point]
+          default: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          description: Urutan [longitude, latitude]
+          items:
+            type: number
+          example: [107.6098, -6.9147]
+    Error:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Data permintaan tidak valid
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  path:
+                    type: string
+                  message:
+                    type: string
+      example:
+        success: false
+        error:
+          code: VALIDATION_ERROR
+          message: Data permintaan tidak valid
+          details:
+            - path: pickupDeadline
+              message: Batas waktu pengambilan harus setelah waktu sekarang
+    Pagination:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 42
+        totalPages:
+          type: integer
+          example: 3
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [ok]
+            database:
+              type: string
+              enum: [connected, disconnected]
+    UserRole:
+      type: string
+      enum: [provider, receiver, admin]
+    VerificationStatus:
+      type: string
+      enum: [unverified, pending, verified, rejected]
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        organizationName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+    User:
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+        - type: object
+          properties:
+            email:
+              type: string
+              format: email
+            role:
+              $ref: '#/components/schemas/UserRole'
+            verificationStatus:
+              $ref: '#/components/schemas/VerificationStatus'
+            location:
+              $ref: '#/components/schemas/GeoPoint'
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    RegisterRequest:
+      type: object
+      required: [name, email, password, role]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        role:
+          type: string
+          enum: [provider, receiver]
+        phone:
+          type: string
+          minLength: 8
+          maxLength: 20
+        organizationName:
+          type: string
+          minLength: 2
+          maxLength: 150
+          description: Wajib untuk role receiver
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+    UpdateProfileRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        phone:
+          type: string
+          minLength: 8
+          maxLength: 20
+        organizationName:
+          type: string
+          minLength: 2
+          maxLength: 150
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+              description: JWT access token
+    SubmitVerificationRequest:
+      type: object
+      required: [organizationName, contactPhone]
+      additionalProperties: false
+      properties:
+        organizationName:
+          type: string
+          minLength: 2
+          maxLength: 150
+        contactPhone:
+          type: string
+          minLength: 8
+          maxLength: 20
+        supportingDocumentUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          description: Harus URL http atau https
+        notes:
+          type: string
+          maxLength: 1000
+    DecideVerificationRequest:
+      type: object
+      required: [decision]
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        reviewNote:
+          type: string
+          maxLength: 1000
+          description: Wajib diisi bila decision rejected
+    Verification:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+        organizationName:
+          type: string
+        contactPhone:
+          type: string
+        supportingDocumentUrl:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        reviewedBy:
+          type: string
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewNote:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VerificationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            verification:
+              $ref: '#/components/schemas/Verification'
+    VerificationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Verification'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+    FoodCategory:
+      type: string
+      enum:
+        - makanan_matang
+        - roti_dan_kue
+        - buah_dan_sayur
+        - makanan_kemasan
+        - minuman
+        - lainnya
+    FoodUnit:
+      type: string
+      enum: [porsi, paket, kg, liter, item]
+    FoodStatus:
+      type: string
+      enum: [draft, available, reserved, completed, expired, cancelled]
+    FoodListing:
+      type: object
+      properties:
+        id:
+          type: string
+        providerId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+          description: ObjectId pada respons pembuatan; objek ringkas pada pencarian/detail
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/FoodCategory'
+        quantity:
+          type: number
+        availableQuantity:
+          type: number
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        productionDate:
+          type: string
+          format: date-time
+        expiryDate:
+          type: string
+          format: date-time
+          nullable: true
+        pickupDeadline:
+          type: string
+          format: date-time
+        allergens:
+          type: array
+          items:
+            type: string
+        storageInstructions:
+          type: string
+          nullable: true
+        pickupAddress:
+          type: string
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        status:
+          $ref: '#/components/schemas/FoodStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FoodSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          $ref: '#/components/schemas/FoodCategory'
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        pickupDeadline:
+          type: string
+          format: date-time
+        pickupAddress:
+          type: string
+        status:
+          $ref: '#/components/schemas/FoodStatus'
+        availableQuantity:
+          type: number
+    CreateFoodRequest:
+      type: object
+      required:
+        - name
+        - description
+        - category
+        - quantity
+        - unit
+        - productionDate
+        - pickupDeadline
+        - pickupAddress
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 150
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        category:
+          $ref: '#/components/schemas/FoodCategory'
+        quantity:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 100000
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        productionDate:
+          type: string
+          format: date-time
+        expiryDate:
+          type: string
+          format: date-time
+        pickupDeadline:
+          type: string
+          format: date-time
+          description: Harus setelah waktu sekarang
+        allergens:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 50
+        storageInstructions:
+          type: string
+          maxLength: 500
+        pickupAddress:
+          type: string
+          minLength: 5
+          maxLength: 300
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+    UpdateFoodRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 150
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        category:
+          $ref: '#/components/schemas/FoodCategory'
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        productionDate:
+          type: string
+          format: date-time
+        expiryDate:
+          type: string
+          format: date-time
+        pickupDeadline:
+          type: string
+          format: date-time
+        allergens:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 50
+        storageInstructions:
+          type: string
+          maxLength: 500
+        pickupAddress:
+          type: string
+          minLength: 5
+          maxLength: 300
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+    FoodResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            listing:
+              $ref: '#/components/schemas/FoodListing'
+    FoodListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/FoodListing'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+    ReservationStatus:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+        - cancelled
+        - ready_for_pickup
+        - picked_up
+        - completed
+        - expired
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: string
+        listingId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/FoodSummary'
+        providerId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+        receiverId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+        quantity:
+          type: number
+        status:
+          $ref: '#/components/schemas/ReservationStatus'
+        pickupSchedule:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        statusNote:
+          type: string
+          nullable: true
+        statusChangedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ReservationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReservationStatus'
+        quantity:
+          type: number
+        pickupSchedule:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateReservationRequest:
+      type: object
+      required: [listingId, quantity]
+      additionalProperties: false
+      properties:
+        listingId:
+          $ref: '#/components/schemas/ObjectId'
+        quantity:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 100000
+        pickupSchedule:
+          type: string
+          format: date-time
+          description: Opsional; harus setelah sekarang dan tidak melewati pickupDeadline listing
+    ApproveReservationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pickupSchedule:
+          type: string
+          format: date-time
+        note:
+          type: string
+          maxLength: 500
+    RejectReservationRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+    CancelReservationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+    ReservationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            reservation:
+              $ref: '#/components/schemas/Reservation'
+    ReservationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Reservation'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+    DistributionStatus:
+      type: string
+      enum: [pending, pickup_ready, verified, completed, failed]
+    Distribution:
+      type: object
+      properties:
+        id:
+          type: string
+        reservationId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/ReservationSummary'
+        listingId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/FoodSummary'
+        providerId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+        receiverId:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/UserSummary'
+        quantity:
+          type: number
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        status:
+          $ref: '#/components/schemas/DistributionStatus'
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VerifyPickupRequest:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: Kode pengambilan 6 digit
+    DistributionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            distribution:
+              $ref: '#/components/schemas/Distribution'
+    DistributionListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Distribution'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+    ReadyForPickupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          properties:
+            reservation:
+              $ref: '#/components/schemas/Reservation'
+            distribution:
+              $ref: '#/components/schemas/Distribution'
+            pickupCode:
+              type: string
+              pattern: '^\d{6}$'
+              description: Ditampilkan satu kali; simpan dan berikan kepada receiver
+    FoodStatusBreakdown:
+      type: object
+      description: Jumlah listing per status
+      required: [draft, available, reserved, completed, expired, cancelled]
+      properties:
+        draft:
+          type: integer
+        available:
+          type: integer
+        reserved:
+          type: integer
+        completed:
+          type: integer
+        expired:
+          type: integer
+        cancelled:
+          type: integer
+    ReservationStatusBreakdown:
+      type: object
+      description: Jumlah reservasi per status
+      required:
+        - pending
+        - approved
+        - rejected
+        - cancelled
+        - ready_for_pickup
+        - picked_up
+        - completed
+        - expired
+      properties:
+        pending:
+          type: integer
+        approved:
+          type: integer
+        rejected:
+          type: integer
+        cancelled:
+          type: integer
+        ready_for_pickup:
+          type: integer
+        picked_up:
+          type: integer
+        completed:
+          type: integer
+        expired:
+          type: integer
+    DistributionStatusBreakdown:
+      type: object
+      description: Jumlah distribusi per status
+      required: [pending, pickup_ready, verified, completed, failed]
+      properties:
+        pending:
+          type: integer
+        pickup_ready:
+          type: integer
+        verified:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+    UnitQuantity:
+      type: object
+      required: [unit, quantity, distributions]
+      properties:
+        unit:
+          $ref: '#/components/schemas/FoodUnit'
+        quantity:
+          type: number
+          description: Total kuantitas distribusi selesai
+        distributions:
+          type: integer
+          description: Jumlah distribusi selesai
+    ProviderAnalytics:
+      type: object
+      required:
+        [listings, reservations, distributions, completedQuantityByUnit]
+      properties:
+        listings:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/FoodStatusBreakdown'
+        reservations:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/ReservationStatusBreakdown'
+        distributions:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/DistributionStatusBreakdown'
+        completedQuantityByUnit:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitQuantity'
+    ReceiverAnalytics:
+      type: object
+      required: [reservations, distributions, completedQuantityByUnit]
+      properties:
+        reservations:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/ReservationStatusBreakdown'
+        distributions:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/DistributionStatusBreakdown'
+        completedQuantityByUnit:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitQuantity'
+    PlatformAnalytics:
+      type: object
+      required:
+        [users, listings, reservations, distributions, completedQuantityByUnit]
+      properties:
+        users:
+          type: object
+          required: [total, verified, byRole]
+          properties:
+            total:
+              type: integer
+            verified:
+              type: integer
+            byRole:
+              type: object
+              required: [provider, receiver, admin]
+              properties:
+                provider:
+                  type: integer
+                receiver:
+                  type: integer
+                admin:
+                  type: integer
+        listings:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/FoodStatusBreakdown'
+        reservations:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/ReservationStatusBreakdown'
+        distributions:
+          type: object
+          required: [total, byStatus]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              $ref: '#/components/schemas/DistributionStatusBreakdown'
+        completedQuantityByUnit:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnitQuantity'
+    ProviderAnalyticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/ProviderAnalytics'
+    ReceiverAnalyticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/ReceiverAnalytics'
+    PlatformAnalyticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/PlatformAnalytics'
