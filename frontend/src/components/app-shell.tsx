@@ -71,11 +71,9 @@ export function AppShell({
 
       <div className="app-frame">
         <aside className="app-sidebar" aria-label="Navigasi utama">
-          <div className="px-2">
+          <div className="flex flex-col items-start gap-3 px-2">
             <Wordmark href={`/${user.role}`} tone="light" />
-            <span className="role-pill mt-3">
-              {roleLabels[user.role]}
-            </span>
+            <span className="role-pill">{roleLabels[user.role]}</span>
           </div>
 
           <nav className="sidebar-nav" aria-label="Menu akun">

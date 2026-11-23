@@ -1,0 +1,1097 @@
+{
+  "info": {
+    "name": "WasteLess API - Final Project Backend Basic",
+    "description": "Collection untuk menguji seluruh endpoint WasteLess. Jalankan request secara berurutan sesuai nomor folder. Variabel token, id, dan kode pickup diisi otomatis oleh test script. Sebelum menjalankan, buat akun admin dengan npm run create-admin dan sesuaikan kredensial di environment WasteLess Local.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "token", "value": "" },
+    { "key": "providerToken", "value": "" },
+    { "key": "receiverToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "demoListingId", "value": "" },
+    { "key": "listingId", "value": "" },
+    { "key": "reservationId", "value": "" },
+    { "key": "distributionId", "value": "" },
+    { "key": "pickupCode", "value": "" },
+    { "key": "verificationProviderId", "value": "" },
+    { "key": "verificationReceiverId", "value": "" },
+    { "key": "productionDate", "value": "" },
+    { "key": "pickupDeadline", "value": "" },
+    { "key": "approveSchedule", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Persiapan",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Mengecek status server dan koneksi database. Status 200 menandakan server siap."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Database terhubung', function () {",
+                  "  pm.expect(pm.response.json().data.database).to.eql('connected');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Register Provider",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dapur Demo Provider\",\n  \"email\": \"{{providerEmail}}\",\n  \"password\": \"{{providerPassword}}\",\n  \"role\": \"provider\",\n  \"organizationName\": \"Dapur Demo\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "CREATE akun provider. Jika dijalankan ulang, backend mengembalikan 409 EMAIL_TAKEN."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Register 201 atau 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Register Receiver",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Yayasan Demo Receiver\",\n  \"email\": \"{{receiverEmail}}\",\n  \"password\": \"{{receiverPassword}}\",\n  \"role\": \"receiver\",\n  \"organizationName\": \"Yayasan Demo\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "CREATE akun receiver. OrganizationName wajib untuk peran receiver."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Register 201 atau 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Login admin. Akun admin dibuat lewat npm run create-admin. Token disimpan ke variabel token dan adminToken."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "  pm.collectionVariables.set('adminToken', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Verifikasi",
+      "item": [
+        {
+          "name": "5. Ajukan Verifikasi Provider",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"Dapur Demo\",\n  \"contactPhone\": \"081234567890\",\n  \"notes\": \"Pengajuan uji Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/verifications", "host": ["{{baseUrl}}"], "path": ["verifications"] },
+            "description": "CREATE pengajuan verifikasi provider. Status akun berubah menjadi pending."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Pengajuan 201 atau 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Ajukan Verifikasi Receiver",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"Yayasan Demo\",\n  \"contactPhone\": \"081234567891\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/verifications", "host": ["{{baseUrl}}"], "path": ["verifications"] },
+            "description": "CREATE pengajuan verifikasi receiver."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Pengajuan 201 atau 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Daftar Pengajuan Pending (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/verifications?status=pending&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "verifications"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "READ dengan query parameter status, page, dan limit. Test script mencari id pengajuan berdasarkan email dan menyimpannya ke variabel."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Daftar verifikasi 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const items = pm.response.json().data.items;",
+                  "const cari = function (email) {",
+                  "  return items.find(function (i) { return i.userId && i.userId.email === email; });",
+                  "};",
+                  "const p = cari(pm.environment.get('providerEmail'));",
+                  "const r = cari(pm.environment.get('receiverEmail'));",
+                  "if (p) pm.collectionVariables.set('verificationProviderId', p.id);",
+                  "if (r) pm.collectionVariables.set('verificationReceiverId', r.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Setujui Pengajuan Provider (Path Parameter)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"reviewNote\": \"Disetujui lewat Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/admin/verifications/{{verificationProviderId}}", "host": ["{{baseUrl}}"], "path": ["admin", "verifications", "{{verificationProviderId}}"] },
+            "description": "UPDATE status pengajuan provider menjadi approved. Memakai path parameter id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Keputusan 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Setujui Pengajuan Receiver (Path Parameter)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approved\",\n  \"reviewNote\": \"Disetujui lewat Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/admin/verifications/{{verificationReceiverId}}", "host": ["{{baseUrl}}"], "path": ["admin", "verifications", "{{verificationReceiverId}}"] },
+            "description": "UPDATE status pengajuan receiver menjadi approved."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Keputusan 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Login Provider",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{providerEmail}}\",\n  \"password\": \"{{providerPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Login provider. Token dipakai untuk seluruh request di folder Foods dan sebagian Reservasi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "  pm.collectionVariables.set('providerToken', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Foods (CRUD dan Parameter)",
+      "item": [
+        {
+          "name": "11. Buat Listing Demo (CREATE)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nasi Kotak Demo Postman\",\n  \"description\": \"Data uji Postman berisi nasi, ayam bakar, dan tumis sayur.\",\n  \"category\": \"makanan_matang\",\n  \"quantity\": 10,\n  \"unit\": \"porsi\",\n  \"productionDate\": \"{{productionDate}}\",\n  \"pickupDeadline\": \"{{pickupDeadline}}\",\n  \"pickupAddress\": \"Jl. Contoh No. 1, Bandung\",\n  \"allergens\": [\"kedelai\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/foods", "host": ["{{baseUrl}}"], "path": ["foods"] },
+            "description": "CREATE listing. Tanggal produksi dan batas ambil diisi otomatis oleh pre-request script. Id disimpan sebagai demoListingId."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = Date.now();",
+                  "pm.collectionVariables.set('productionDate', new Date(now).toISOString());",
+                  "pm.collectionVariables.set('pickupDeadline', new Date(now + 8 * 60 * 60 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Listing dibuat 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('demoListingId', pm.response.json().data.listing.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Cari Listing (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/foods?category=makanan_matang&q=nasi&page=1&limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["foods"],
+              "query": [
+                { "key": "category", "value": "makanan_matang" },
+                { "key": "q", "value": "nasi" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "5" }
+              ]
+            },
+            "description": "READ dengan filter category, kata kunci q, dan pagination."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Pencarian 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Body memuat items dan pagination', function () {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "  pm.expect(data.pagination).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Detail Listing (Path Parameter)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/foods/{{demoListingId}}", "host": ["{{baseUrl}}"], "path": ["foods", "{{demoListingId}}"] },
+            "description": "READ satu listing berdasarkan path parameter id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Detail 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Id sesuai', function () {",
+                  "  pm.expect(pm.response.json().data.listing.id).to.eql(pm.collectionVariables.get('demoListingId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Ubah Listing (UPDATE)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Data uji Postman, deskripsi sudah diperbarui.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/foods/{{demoListingId}}", "host": ["{{baseUrl}}"], "path": ["foods", "{{demoListingId}}"] },
+            "description": "UPDATE deskripsi listing. Backend menolak perubahan jika ada reservasi aktif, jadi jalankan sebelum membuat reservasi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Update 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Deskripsi berubah', function () {",
+                  "  pm.expect(pm.response.json().data.listing.description).to.include('diperbarui');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Listing Saya (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/foods/mine?status=available&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["foods", "mine"],
+              "query": [
+                { "key": "status", "value": "available" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "READ listing milik provider dengan filter status."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Listing saya 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Tutup Listing (DELETE)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/foods/{{demoListingId}}", "host": ["{{baseUrl}}"], "path": ["foods", "{{demoListingId}}"] },
+            "description": "DELETE lunak: status listing berubah menjadi cancelled, riwayat tetap tersimpan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Tutup listing 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status cancelled', function () {",
+                  "  pm.expect(pm.response.json().data.listing.status).to.eql('cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17. Buat Listing untuk Reservasi",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Roti dan Buah Demo Postman\",\n  \"description\": \"Data uji Postman untuk alur reservasi dan distribusi.\",\n  \"category\": \"roti_dan_kue\",\n  \"quantity\": 8,\n  \"unit\": \"paket\",\n  \"productionDate\": \"{{productionDate}}\",\n  \"pickupDeadline\": \"{{pickupDeadline}}\",\n  \"pickupAddress\": \"Jl. Contoh No. 1, Bandung\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/foods", "host": ["{{baseUrl}}"], "path": ["foods"] },
+            "description": "CREATE listing kedua yang dipakai untuk alur reservasi. Id disimpan sebagai listingId."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = Date.now();",
+                  "pm.collectionVariables.set('productionDate', new Date(now).toISOString());",
+                  "pm.collectionVariables.set('pickupDeadline', new Date(now + 8 * 60 * 60 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Listing dibuat 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('listingId', pm.response.json().data.listing.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Reservasi",
+      "item": [
+        {
+          "name": "18. Login Receiver",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{receiverEmail}}\",\n  \"password\": \"{{receiverPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Login receiver sebelum membuat reservasi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "  pm.collectionVariables.set('receiverToken', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19. Buat Reservasi (CREATE)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"quantity\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/reservations", "host": ["{{baseUrl}}"], "path": ["reservations"] },
+            "description": "CREATE reservasi. Stok listing dikurangi secara atomik di dalam transaksi. Id disimpan sebagai reservationId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reservasi dibuat 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set('reservationId', pm.response.json().data.reservation.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20. Login Provider (lagi)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{providerEmail}}\",\n  \"password\": \"{{providerPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Kembali ke sesi provider untuk menyetujui reservasi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21. Reservasi Saya (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/reservations/my?status=pending&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "my"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "READ reservasi milik provider dengan filter status pending."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Riwayat reservasi 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22. Detail Reservasi (Path Parameter)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] },
+            "description": "READ satu reservasi berdasarkan path parameter id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Detail reservasi 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23. Setujui Reservasi (UPDATE)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupSchedule\": \"{{approveSchedule}}\",\n  \"note\": \"Disetujui lewat Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}/approve", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}", "approve"] },
+            "description": "UPDATE status menjadi approved. Jadwal ambil wajib agar bisa ditandai siap diambil."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('approveSchedule', new Date(Date.now() + 60 * 60 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Persetujuan 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status approved', function () {",
+                  "  pm.expect(pm.response.json().data.reservation.status).to.eql('approved');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24. Tandai Siap Diambil",
+          "request": {
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}/ready", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}", "ready"] },
+            "description": "Membuat distribusi dan kode pickup 6 digit. Kode hanya tampil di response ini."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Siap diambil 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const data = pm.response.json().data;",
+                  "pm.collectionVariables.set('distributionId', data.distribution.id);",
+                  "pm.collectionVariables.set('pickupCode', data.pickupCode);",
+                  "console.log('Kode pickup demo: ' + data.pickupCode);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Distribusi",
+      "item": [
+        {
+          "name": "25. Verifikasi Kode Pickup",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{pickupCode}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/distributions/{{distributionId}}/verify-pickup", "host": ["{{baseUrl}}"], "path": ["distributions", "{{distributionId}}", "verify-pickup"] },
+            "description": "UPDATE status distribusi menjadi verified. Kode berasal dari request sebelumnya."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Verifikasi 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status verified', function () {",
+                  "  pm.expect(pm.response.json().data.distribution.status).to.eql('verified');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "26. Login Receiver (lagi)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{receiverEmail}}\",\n  \"password\": \"{{receiverPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Kembali ke sesi receiver untuk mengonfirmasi penerimaan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "27. Konfirmasi Selesai",
+          "request": {
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/distributions/{{distributionId}}/complete", "host": ["{{baseUrl}}"], "path": ["distributions", "{{distributionId}}", "complete"] },
+            "description": "UPDATE status distribusi menjadi completed. Reservasi ikut menjadi completed dan masuk analitik dampak."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Penyelesaian 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status completed', function () {",
+                  "  pm.expect(pm.response.json().data.distribution.status).to.eql('completed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28. Riwayat Distribusi (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/distributions/history?status=completed&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions", "history"],
+              "query": [
+                { "key": "status", "value": "completed" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "READ riwayat distribusi dengan filter status."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Riwayat distribusi 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Analitik dan Dokumentasi",
+      "item": [
+        {
+          "name": "29. Ringkasan Penerima",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/analytics/receiver", "host": ["{{baseUrl}}"], "path": ["analytics", "receiver"] },
+            "description": "READ analitik receiver dari transaksi yang sudah tercatat. Dijalankan dengan token receiver."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Analitik receiver 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "30. Login Admin (lagi)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Kembali ke sesi admin untuk analitik platform."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.token) {",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "31. Ringkasan Platform",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/analytics/platform", "host": ["{{baseUrl}}"], "path": ["analytics", "platform"] },
+            "description": "READ analitik seluruh platform. Hanya admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Analitik platform 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "32. Spesifikasi OpenAPI",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/docs.json", "host": ["{{baseUrl}}"], "path": ["docs.json"] },
+            "description": "Mengambil spesifikasi OpenAPI dalam bentuk JSON."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OpenAPI 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 - Uji Error dan Status Code",
+      "item": [
+        {
+          "name": "33. Tanpa Token (401)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/foods", "host": ["{{baseUrl}}"], "path": ["foods"] },
+            "description": "Endpoint privat tanpa Bearer token harus ditolak dengan 401 UNAUTHENTICATED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('Kode UNAUTHENTICATED', function () {",
+                  "  pm.expect(pm.response.json().error.code).to.eql('UNAUTHENTICATED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34. Id Tidak Ada (404)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/foods/000000000000000000000000", "host": ["{{baseUrl}}"], "path": ["foods", "000000000000000000000000"] },
+            "description": "Path parameter berupa ObjectId valid yang tidak ada di database harus menghasilkan 404 FOOD_NOT_FOUND."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "35. Query Tidak Valid (422)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/foods?category=tidak_ada",
+              "host": ["{{baseUrl}}"],
+              "path": ["foods"],
+              "query": [{ "key": "category", "value": "tidak_ada" }]
+            },
+            "description": "Query parameter category di luar enum harus ditolak dengan 422 VALIDATION_ERROR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422', function () {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test('Ada details', function () {",
+                  "  pm.expect(pm.response.json().error.details).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36. Logout (Mencabut Token)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] },
+            "description": "Logout menaikkan tokenVersion. Token yang tersimpan di variabel menjadi tidak valid, jadi jalankan ini paling akhir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

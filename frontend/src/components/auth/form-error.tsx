@@ -9,12 +9,12 @@ export function FormError({ error }: { error: unknown }) {
       : [];
 
   return (
-    <div className="border-l-4 border-danger bg-surface px-4 py-3" role="alert">
-      <p className="font-bold text-danger">
+    <div className="notice notice-danger" role="alert">
+      <p className="notice-title">
         {error instanceof Error ? error.message : "Permintaan gagal."}
       </p>
       {details.length > 0 ? (
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+        <ul className="notice-body list-disc space-y-1 pl-5">
           {details.map((detail, index) => (
             <li key={`${detail.path ?? "field"}-${index}`}>
               {detail.path ? `${detail.path}: ` : ""}
