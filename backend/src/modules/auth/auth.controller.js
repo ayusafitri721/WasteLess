@@ -1,4 +1,5 @@
 import * as authService from './auth.service.js';
+import { isEmailConfigured } from '../../utils/mailer.js';
 
 export async function register(req, res) {
   const user = await authService.register(req.validated.body);
@@ -15,6 +16,33 @@ export async function login(req, res) {
   res.json({
     success: true,
     data: { user, token },
+  });
+}
+
+export async function requestReset(req, res) {
+  const { token, expiresAt } = await authService.requestPasswordReset(
+    req.validated.body.email,
+  );
+
+  const data = {
+    message: isEmailConfigured()
+      ? 'Jika email terdaftar, tautan reset sudah dikirim ke email Anda.'
+      : 'Jika email terdaftar, tautan reset sudah dibuat dan berlaku 15 menit.',
+  };
+  if (token) {
+    data.resetToken = token;
+    data.expiresAt = expiresAt;
+  }
+
+  res.json({ success: true, data });
+}
+
+export async function resetPassword(req, res) {
+  const user = await authService.resetPassword(req.validated.body);
+
+  res.json({
+    success: true,
+    data: { user },
   });
 }
 

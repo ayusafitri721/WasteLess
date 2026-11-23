@@ -124,10 +124,78 @@ Semua path diawali dengan `/api`.
 |---|---|---|---|
 | POST | `/auth/register` | Membuat akun provider atau receiver | Publik |
 | POST | `/auth/login` | Login dan mengembalikan token akses | Publik |
+| POST | `/auth/forgot-password` | Membuat token reset password | Publik |
+| POST | `/auth/reset-password` | Mengganti password memakai token reset | Publik |
 | POST | `/auth/logout` | Mencabut token aktif lewat `tokenVersion` | Login |
 | GET | `/auth/me` | Menampilkan profil akun aktif | Login |
 | GET | `/users/me` | Melihat profil sendiri | Login |
 | PATCH | `/users/me` | Memperbarui nama, telepon, nama organisasi, lokasi | Login |
+
+### Lupa password
+
+Halaman `/lupa-password` mengirim email akun ke `POST /auth/forgot-password`. Jika email terdaftar, server menyimpan hash token reset selama 15 menit. Respons selalu sukses dengan pesan yang sama supaya keberadaan email tidak bisa ditebak.
+
+Pengiriman email memakai SMTP. Isi variabel berikut di `backend/.env`:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=nama@gmail.com
+SMTP_PASS=app-password-dari-google
+SMTP_SECURE=false
+MAIL_FROM="WasteLess <nama@gmail.com>"
+```
+
+Untuk Gmail, aktifkan **2-Step Verification** lalu buat **App Password** di https://myaccount.google.com/apppasswords. Gunakan password 16 karakter itu sebagai `SMTP_PASS`, bukan password akun Gmail biasa. Untuk provider lain, sesuaikan host, port, dan `SMTP_SECURE` (`true` untuk port 465).
+
+Cek koneksi dengan:
+
+```bash
+npm run test-email
+```
+
+Kirim ke alamat lain dengan `TEST_EMAIL_TO=penerima@example.com npm run test-email` (di PowerShell: `$env:TEST_EMAIL_TO="penerima@example.com"; npm run test-email`).
+
+Jika SMTP belum diisi, token ditampilkan di `data.resetToken` dan halaman lupa password menyediakan tombol langsung ke `/reset-password?token=...`. **Setelah SMTP terisi, token tidak lagi dikembalikan di response** dan pengguna harus membuka email mereka. Gunakan mode tanpa SMTP ini untuk uji cepat:
+
+1. Buka `http://localhost:3000/lupa-password`.
+2. Masukkan email akun, klik **Kirim tautan reset**.
+3. Di kotak **Mode pengembangan**, klik **Buka halaman ganti password**.
+4. Isi password baru dan konfirmasinya, lalu klik **Simpan password baru**.
+5. Anda diarahkan ke `/masuk` dengan notifikasi sukses dan bisa login memakai password baru.
+
+Token hanya bisa dipakai sekali, kedaluwarsa setelah 15 menit, dan disimpan sebagai hash SHA-256 di database. Setelah password diganti, `tokenVersion` naik sehingga semua token lama otomatis tidak berlaku. Di mode production token tidak pernah dikembalikan di response, jadi SMTP wajib dikonfigurasi.
+
+### Login sosial (Google dan GitHub)
+
+| Method | Endpoint | Fungsi | Akses |
+|---|---|---|---|
+| GET | `/auth/oauth/:provider/start?role=provider\|receiver` | Memulai alur OAuth dan redirect ke provider | Publik |
+| GET | `/auth/oauth/:provider/callback` | Callback provider, verifikasi state, buat kode sekali pakai | Publik |
+| POST | `/auth/oauth/exchange` | Menukar kode sekali pakai dengan JWT | Publik |
+
+`provider` bernilai `google` atau `github`. Role pada request start dipakai jika email belum terdaftar.
+
+Tombol Google dan GitHub di halaman `/masuk` sudah aktif, tetapi memerlukan kredensial OAuth. Cara mengaktifkannya:
+
+1. **Google** — buka [Google Cloud Console](https://console.cloud.google.com/apis/credentials), buat OAuth client ID dengan tipe *Web application*. Tambahkan `http://localhost:5000/api/auth/oauth/google/callback` ke *Authorized redirect URIs*. Salin Client ID dan Client Secret.
+2. **GitHub** — buka *Settings → Developer settings → OAuth Apps → New OAuth App*. Isi *Authorization callback URL* dengan `http://localhost:5000/api/auth/oauth/github/callback`. Salin Client ID dan buat Client Secret.
+3. Isi `backend/.env`:
+
+```env
+GOOGLE_CLIENT_ID=client-id-dari-google
+GOOGLE_CLIENT_SECRET=client-secret-dari-google
+GITHUB_CLIENT_ID=client-id-dari-github
+GITHUB_CLIENT_SECRET=client-secret-dari-github
+OAUTH_BACKEND_ORIGIN=http://localhost:5000
+```
+
+4. Restart backend agar `env.js` membaca nilai baru.
+5. Buka `http://localhost:3000/masuk`, pilih peran Penyedia atau Penerima, lalu klik Google atau GitHub.
+
+Alur teknisnya: frontend mengarahkan ke `/api/auth/oauth/start`, backend membuat state bertanda tangan HMAC dan redirect ke provider. Setelah user menyetujui, provider memanggil callback backend. Backend memverifikasi state, menukar kode otorisasi, memastikan email terverifikasi, lalu membuat atau menghubungkan akun berdasarkan email. Token tidak dikirim lewat URL: backend membuat kode sekali pakai yang ditukar route callback frontend menjadi cookie `wasteless_token` httpOnly.
+
+Jika kredensial belum diisi, tombol mengarahkan ke `/masuk?s=oauth_not_configured` dan pesan yang sesuai ditampilkan. Jika email sudah terdaftar lewat register email/password, peran dan status verifikasinya tetap dipertahankan; akun OAuth hanya dihubungkan.
 
 ### Verifikasi
 

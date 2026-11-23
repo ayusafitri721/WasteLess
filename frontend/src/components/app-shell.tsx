@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { initials } from "@/lib/format";
 import { roleLabels } from "@/lib/labels";
 import type { Role, User } from "@/lib/types";
 import { Wordmark } from "./brand";
 import { ThemeToggle } from "./theme-toggle";
-import { Icon, type IconName } from "./ui/icons";
+import { Icon, LeafMark, type IconName } from "./ui/icons";
 
 type NavItem = { href: string; label: string; shortLabel?: string; icon: IconName };
 
@@ -32,6 +32,8 @@ const navigation: Record<Role, NavItem[]> = {
   ],
 };
 
+const SIDEBAR_STORAGE_KEY = "wasteless-sidebar-collapsed";
+
 function isActive(pathname: string, href: string) {
   if (href.split("/").filter(Boolean).length === 1) {
     return pathname === href;
@@ -49,9 +51,23 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const items = navigation[user.role];
   const activeItem =
     items.find((item) => isActive(pathname, item.href)) ?? items[0];
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (saved !== null) {
+      setCollapsed(saved === "true");
+    }
+  }, []);
+
+  function toggleSidebar() {
+    const next = !collapsed;
+    setCollapsed(next);
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+  }
 
   async function logout() {
     setLoggingOut(true);
@@ -69,53 +85,112 @@ export function AppShell({
         Lewati ke konten utama
       </a>
 
-      <div className="app-frame">
-        <aside className="app-sidebar" aria-label="Navigasi utama">
-          <div className="flex flex-col items-start gap-3 px-2">
-            <Wordmark href={`/${user.role}`} tone="light" />
-            <span className="role-pill">{roleLabels[user.role]}</span>
+      <div className="app-frame" data-sidebar-collapsed={collapsed}>
+        <aside
+          className="app-sidebar"
+          data-collapsed={collapsed}
+          aria-label="Navigasi utama"
+        >
+          <div className="sidebar-header">
+            {collapsed ? (
+              <Link
+                href={`/${user.role}`}
+                className="sidebar-leaf"
+                aria-label="WasteLess, ke beranda"
+                title="WasteLess"
+              >
+                <LeafMark />
+              </Link>
+            ) : (
+              <Wordmark href={`/${user.role}`} tone="light" />
+            )}
+            <button
+              type="button"
+              className="sidebar-toggle"
+              onClick={toggleSidebar}
+              aria-expanded={!collapsed}
+              aria-controls="sidebar-navigation"
+              aria-label={collapsed ? "Buka sidebar" : "Ciutkan sidebar"}
+              title={collapsed ? "Buka sidebar" : "Ciutkan sidebar"}
+            >
+              <Icon name={collapsed ? "chevronsRight" : "chevronsLeft"} size={18} />
+            </button>
           </div>
 
-          <nav className="sidebar-nav" aria-label="Menu akun">
-            <p className="sidebar-label">Menu</p>
-            {items.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="sidebar-link"
-                  data-active={active}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <Icon name={item.icon} size={19} />
-                  {item.label}
-                </Link>
-              );
-            })}
+          <span className="sidebar-role">{roleLabels[user.role]}</span>
+
+          <nav
+            id="sidebar-navigation"
+            className="sidebar-nav"
+            aria-label="Menu akun"
+          >
+            <div className="sidebar-section">
+              <p className="sidebar-label">Menu utama</p>
+              {items.map((item) => {
+                const active = isActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="sidebar-link"
+                    data-active={active}
+                    aria-current={active ? "page" : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon name={item.icon} size={19} />
+                    <span className="sidebar-link-text">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="sidebar-section">
+              <p className="sidebar-label">Akun</p>
+              <Link
+                href="/akun"
+                className="sidebar-link"
+                data-active={pathname === "/akun"}
+                aria-label={collapsed ? "Pengaturan akun" : undefined}
+                title={collapsed ? "Pengaturan akun" : undefined}
+              >
+                <Icon name="user" size={19} />
+                <span className="sidebar-link-text">Pengaturan akun</span>
+              </Link>
+              <button
+                type="button"
+                className="sidebar-link w-full text-left"
+                onClick={logout}
+                disabled={loggingOut}
+                aria-label={collapsed ? "Keluar" : undefined}
+                title={collapsed ? "Keluar" : undefined}
+              >
+                <Icon name="logout" size={19} />
+                <span className="sidebar-link-text">
+                  {loggingOut ? "Keluar..." : "Keluar"}
+                </span>
+              </button>
+            </div>
           </nav>
 
           <div className="sidebar-footer">
-            <Link href="/akun" className="sidebar-account">
+            <Link
+              href="/akun"
+              className="sidebar-account"
+              aria-label={collapsed ? `Akun ${user.name}` : undefined}
+              title={collapsed ? user.name : undefined}
+            >
               <span className="sidebar-avatar" aria-hidden="true">
                 {initials(user.name)}
               </span>
-              <span className="min-w-0">
+              <span className="sidebar-account-text">
                 <span className="sidebar-user-name">{user.name}</span>
                 <span className="sidebar-user-meta">
                   {user.organizationName ?? roleLabels[user.role]}
                 </span>
               </span>
+              <Icon name="chevronRight" size={16} className="sidebar-account-chevron" />
             </Link>
-            <button
-              type="button"
-              className="sidebar-link w-full text-left"
-              onClick={logout}
-              disabled={loggingOut}
-            >
-              <Icon name="logout" size={19} />
-              {loggingOut ? "Keluar..." : "Keluar"}
-            </button>
           </div>
         </aside>
 

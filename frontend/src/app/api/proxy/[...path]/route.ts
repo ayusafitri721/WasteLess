@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { backendFetch, getToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = new Set(["auth/register"]);
+const PUBLIC_PATHS = new Set([
+  "auth/register",
+  "auth/forgot-password",
+  "auth/reset-password",
+]);
 const BLOCKED_PATHS = new Set(["auth/login", "auth/logout"]);
 
 type RouteContext = { params: Promise<{ path: string[] }> };

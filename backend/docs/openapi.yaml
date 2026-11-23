@@ -116,6 +116,98 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Meminta token reset password
+      description: |
+        Jika email terdaftar, server membuat token reset berlaku 15 menit.
+        Respons selalu sukses agar email tidak bisa dibocorkan. Jika SMTP
+        dikonfigurasi, tautan dikirim ke email dan token tidak dikembalikan
+        di response. Tanpa SMTP, token tampil di `data.resetToken` untuk
+        keperluan pengujian lokal.
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Permintaan diterima
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      resetToken:
+                        type: string
+                      expiresAt:
+                        type: string
+                        format: date-time
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Mengganti password memakai token reset
+      description: |
+        Token hanya bisa dipakai sekali dan kedaluwarsa setelah 15 menit.
+        Password baru juga menaikkan `tokenVersion`, sehingga token lama
+        otomatis tidak berlaku.
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        '200':
+          description: Password berhasil diubah
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Token tidak valid, sudah dipakai, atau kedaluwarsa
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /auth/logout:
     post:
       tags: [Auth]
@@ -143,6 +235,113 @@ paths:
                 $ref: '#/components/schemas/UserResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /auth/oauth/{provider}/start:
+    get:
+      tags: [Auth]
+      summary: Memulai alur login dengan Google atau GitHub
+      description: |
+        Membuat state OAuth bertanda tangan lalu mengembalikan redirect 302
+        ke halaman otorisasi provider. Parameter `role` menentukan peran akun
+        baru yang dibuat jika email belum terdaftar.
+      operationId: startOAuth
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, github]
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [provider, receiver]
+            default: receiver
+      responses:
+        '302':
+          description: Redirect ke halaman otorisasi provider
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          description: Kredensial OAuth belum dikonfigurasi di server
+  /auth/oauth/{provider}/callback:
+    get:
+      tags: [Auth]
+      summary: Callback dari provider OAuth
+      description: |
+        Dipanggil oleh Google atau GitHub. Memverifikasi state, menukar kode
+        otorisasi, lalu mengarahkan browser ke route callback frontend dengan
+        kode pertukaran sekali pakai. Kegagalan diarahkan ke `/masuk`.
+      operationId: oauthCallback
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, github]
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect ke callback frontend atau halaman masuk
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+  /auth/oauth/exchange:
+    post:
+      tags: [Auth]
+      summary: Menukar kode sekali pakai dengan access token
+      description: |
+        Dipanggil server-side oleh frontend. Kode hanya berlaku sekali dan
+        kedaluwarsa sesuai `OAUTH_EXCHANGE_TTL_SECONDS`.
+      operationId: exchangeOAuthCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  minLength: 20
+      responses:
+        '200':
+          description: Token berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Kode tidak valid, sudah dipakai, atau kedaluwarsa
+        '422':
+          $ref: '#/components/responses/ValidationError'
   /users/me:
     get:
       tags: [Users]

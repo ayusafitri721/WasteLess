@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/errors";
@@ -42,8 +43,9 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
-  const [resetNotice, setResetNotice] = useState(false);
-  const [socialNotice, setSocialNotice] = useState(false);
+  const [oauthRole, setOauthRole] = useState<"provider" | "receiver">(
+    "receiver",
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,21 +134,10 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
           />
           Ingat saya
         </label>
-        <button
-          type="button"
-          className="auth-inline-link"
-          onClick={() => setResetNotice((value) => !value)}
-        >
+        <Link href="/lupa-password" className="auth-inline-link">
           Lupa password?
-        </button>
+        </Link>
       </div>
-
-      {resetNotice ? (
-        <p className="auth-help" role="status">
-          Reset password belum tersedia. Hubungi operator platform untuk
-          bantuan akses.
-        </p>
-      ) : null}
 
       <Button type="submit" className="w-full" loading={loading}>
         Masuk
@@ -155,33 +146,53 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
 
       <div className="auth-divider">atau masuk dengan</div>
 
+      <div className="oauth-role">
+        <span>Daftar sebagai</span>
+        <div className="oauth-role-group" role="group" aria-label="Peran OAuth">
+          <button
+            type="button"
+            className="oauth-role-option"
+            data-active={oauthRole === "provider"}
+            aria-pressed={oauthRole === "provider"}
+            onClick={() => setOauthRole("provider")}
+          >
+            Penyedia
+          </button>
+          <button
+            type="button"
+            className="oauth-role-option"
+            data-active={oauthRole === "receiver"}
+            aria-pressed={oauthRole === "receiver"}
+            onClick={() => setOauthRole("receiver")}
+          >
+            Penerima
+          </button>
+        </div>
+      </div>
+
       <div className="grid gap-2.5 sm:grid-cols-2">
-        <button
-          type="button"
+        <a
           className="social-btn"
-          onClick={() => setSocialNotice(true)}
+          href={`/api/auth/oauth/start?provider=google&role=${oauthRole}`}
         >
           <span className="social-google" aria-hidden="true">
             G
           </span>
           Google
-        </button>
-        <button
-          type="button"
+        </a>
+        <a
           className="social-btn"
-          onClick={() => setSocialNotice(true)}
+          href={`/api/auth/oauth/start?provider=github&role=${oauthRole}`}
         >
           <Icon name="github" size={18} />
           GitHub
-        </button>
+        </a>
       </div>
 
-      {socialNotice ? (
-        <p className="auth-help" role="status">
-          Login dengan Google atau GitHub belum tersedia. Gunakan email dan
-          password.
-        </p>
-      ) : null}
+      <p className="auth-help">
+        Akun baru memakai peran yang dipilih di atas. Email dari Google atau
+        GitHub harus terverifikasi.
+      </p>
     </form>
   );
 }

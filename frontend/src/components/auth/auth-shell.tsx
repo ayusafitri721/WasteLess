@@ -9,7 +9,7 @@ export function AuthShell({
   description,
   children,
 }: {
-  mode: "login" | "register";
+  mode: "login" | "register" | "forgot" | "reset";
   title: string;
   description: string;
   children: ReactNode;
@@ -68,9 +68,16 @@ export function AuthShell({
                   Daftar sekarang
                 </Link>
               </>
-            ) : (
+            ) : mode === "register" ? (
               <>
                 Sudah punya akun?{" "}
+                <Link href="/masuk" className="auth-link">
+                  Masuk sekarang
+                </Link>
+              </>
+            ) : (
+              <>
+                Ingin kembali?{" "}
                 <Link href="/masuk" className="auth-link">
                   Masuk sekarang
                 </Link>

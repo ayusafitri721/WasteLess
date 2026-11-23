@@ -4,7 +4,12 @@ import { env } from '../../config/env.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { validate } from '../../middlewares/validate.js';
 import * as authController from './auth.controller.js';
-import { loginSchema, registerSchema } from './auth.validation.js';
+import {
+  loginSchema,
+  registerSchema,
+  requestResetSchema,
+  resetPasswordSchema,
+} from './auth.validation.js';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -37,6 +42,18 @@ router.post(
   authLimiter,
   validate({ body: loginSchema }),
   authController.login,
+);
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate({ body: requestResetSchema }),
+  authController.requestReset,
+);
+router.post(
+  '/reset-password',
+  authLimiter,
+  validate({ body: resetPasswordSchema }),
+  authController.resetPassword,
 );
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, authController.me);

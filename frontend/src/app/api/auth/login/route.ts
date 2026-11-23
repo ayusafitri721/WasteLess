@@ -1,20 +1,5 @@
 import { NextResponse } from "next/server";
-import { backendFetch, TOKEN_COOKIE } from "@/lib/auth";
-
-function cookieMaxAge(token: string) {
-  try {
-    const payload = token.split(".")[1];
-    const parsed = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    ) as { exp?: number };
-    if (typeof parsed.exp === "number") {
-      return Math.max(60, parsed.exp - Math.floor(Date.now() / 1000));
-    }
-  } catch {
-    // Fall back to the backend's default 15 minute access token.
-  }
-  return 15 * 60;
-}
+import { backendFetch, TOKEN_COOKIE, tokenCookieMaxAge } from "@/lib/auth";
 
 export async function POST(request: Request) {
   let body: { email?: string; password?: string };
@@ -95,7 +80,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: cookieMaxAge(payload.data.token),
+    maxAge: tokenCookieMaxAge(payload.data.token),
   });
 
   return result;

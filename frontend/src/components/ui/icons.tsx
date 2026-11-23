@@ -27,7 +27,10 @@ export type IconName =
   | "eyeOff"
   | "phone"
   | "building"
-  | "github";
+  | "github"
+  | "chevronsLeft"
+  | "chevronsRight"
+  | "chevronRight";
 
 const paths: Record<IconName, ReactNode> = {
   home: (
@@ -182,6 +185,19 @@ const paths: Record<IconName, ReactNode> = {
       d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2.2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6a11.5 11.5 0 0 0 7.9-10.9C23.5 5.7 18.3.5 12 .5Z"
     />
   ),
+  chevronsLeft: (
+    <>
+      <path d="m11 6-6 6 6 6" />
+      <path d="m18 6-6 6 6 6" />
+    </>
+  ),
+  chevronsRight: (
+    <>
+      <path d="m6 6 6 6-6 6" />
+      <path d="m13 6 6 6-6 6" />
+    </>
+  ),
+  chevronRight: <path d="m9 6 6 6-6 6" />,
 };
 
 export function Icon({

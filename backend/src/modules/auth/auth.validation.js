@@ -48,3 +48,19 @@ export const loginSchema = z
     password: z.string().min(1, 'Password wajib diisi'),
   })
   .strict();
+
+export const requestResetSchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
+export const resetPasswordSchema = z
+  .object({
+    token: z
+      .string()
+      .min(20, 'Token reset tidak valid')
+      .max(200, 'Token reset tidak valid'),
+    password: passwordSchema,
+  })
+  .strict();

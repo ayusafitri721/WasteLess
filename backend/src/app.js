@@ -10,6 +10,7 @@ import { env } from './config/env.js';
 import { isDatabaseConnected } from './config/database.js';
 import analyticsRoutes from './modules/analytics/analytics.route.js';
 import authRoutes from './modules/auth/auth.route.js';
+import oauthRoutes from './modules/auth/oauth.route.js';
 import distributionRoutes from './modules/distributions/distribution.route.js';
 import foodRoutes from './modules/foods/food.route.js';
 import reservationRoutes from './modules/reservations/reservation.route.js';
@@ -71,6 +72,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/foods', foodRoutes);

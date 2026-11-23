@@ -52,9 +52,35 @@ const userSchema = new Schema(
       default: 0,
       select: false,
     },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+      default: undefined,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      select: false,
+      default: undefined,
+    },
     location: {
       type: geoPointSchema,
       default: undefined,
+    },
+    oauthAccounts: {
+      type: [
+        {
+          provider: {
+            type: String,
+            enum: ['google', 'github'],
+            required: true,
+          },
+          providerAccountId: {
+            type: String,
+            required: true,
+          },
+        },
+      ],
+      default: [],
     },
   },
   {
@@ -69,6 +95,8 @@ userSchema.set('toJSON', {
     delete ret._id;
     delete ret.passwordHash;
     delete ret.tokenVersion;
+    delete ret.passwordResetTokenHash;
+    delete ret.passwordResetExpiresAt;
     return ret;
   },
 });

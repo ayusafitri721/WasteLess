@@ -20,6 +20,29 @@ export function backendUrl(path: string) {
   return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
+export function backendOrigin() {
+  const base = process.env.BACKEND_API_URL;
+  if (!base) {
+    throw new Error("BACKEND_API_URL belum diatur.");
+  }
+  return new URL(base).origin;
+}
+
+export function tokenCookieMaxAge(token: string) {
+  try {
+    const payload = token.split(".")[1];
+    const parsed = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as { exp?: number };
+    if (typeof parsed.exp === "number") {
+      return Math.max(60, parsed.exp - Math.floor(Date.now() / 1000));
+    }
+  } catch {
+    // Fall back to the backend's default 15 minute access token.
+  }
+  return 15 * 60;
+}
+
 export async function backendFetch(path: string, init: RequestInit = {}) {
   try {
     return await fetch(backendUrl(path), {
