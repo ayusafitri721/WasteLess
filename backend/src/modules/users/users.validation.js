@@ -1,5 +1,21 @@
 import { z } from 'zod';
+import { normalizeAvatarDataUrl } from '../../utils/avatar.js';
 import { geoPointSchema } from '../../utils/validation-schemas.js';
+
+const avatarSchema = z
+  .string()
+  .max(800000, 'Foto profil terlalu besar')
+  .transform((value, ctx) => {
+    try {
+      return normalizeAvatarDataUrl(value);
+    } catch {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Format foto profil harus PNG atau JPEG',
+      });
+      return z.NEVER;
+    }
+  });
 
 export const updateProfileSchema = z
   .object({
@@ -22,6 +38,7 @@ export const updateProfileSchema = z
       .max(150, 'Nama organisasi maksimal 150 karakter')
       .optional(),
     location: geoPointSchema.optional(),
+    avatar: avatarSchema.nullable().optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

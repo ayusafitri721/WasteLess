@@ -96,7 +96,19 @@ export function ProviderReservationActions({
 
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText(pickupCode);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(pickupCode);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = pickupCode;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

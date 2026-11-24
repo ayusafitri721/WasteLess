@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { AutoRefresh } from "@/components/auto-refresh";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -39,7 +40,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <AutoRefresh />
+        {children}
+      </body>
     </html>
   );
 }

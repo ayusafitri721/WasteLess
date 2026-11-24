@@ -10,6 +10,9 @@ process.env.MONGODB_URI =
   process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/wasteless_test';
 process.env.CLIENT_ORIGIN =
   process.env.CLIENT_ORIGIN ?? 'http://localhost:3000';
+process.env.SMTP_HOST = '';
+process.env.SMTP_USER = '';
+process.env.SMTP_PASS = '';
 
 const account = {
   name: 'Dapur Berkah',

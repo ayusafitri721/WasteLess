@@ -11,7 +11,7 @@ export default async function AuthenticatedLayout({
 
   return (
     <AuthProvider initialUser={user}>
-      <AppShell user={user}>{children}</AppShell>
+      <AppShell>{children}</AppShell>
     </AuthProvider>
   );
 }

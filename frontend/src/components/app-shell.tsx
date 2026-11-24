@@ -1,12 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore, useState } from "react";
+import { useCurrentUser } from "@/components/auth/auth-provider";
 import { initials } from "@/lib/format";
 import { roleLabels } from "@/lib/labels";
-import type { Role, User } from "@/lib/types";
+import type { Role } from "@/lib/types";
 import { Wordmark } from "./brand";
 import { ThemeToggle } from "./theme-toggle";
 import { Icon, LeafMark, type IconName } from "./ui/icons";
@@ -33,6 +35,24 @@ const navigation: Record<Role, NavItem[]> = {
 };
 
 const SIDEBAR_STORAGE_KEY = "wasteless-sidebar-collapsed";
+const SIDEBAR_EVENT = "wasteless:sidebar-collapsed";
+
+function subscribeSidebar(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(SIDEBAR_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(SIDEBAR_EVENT, callback);
+  };
+}
+
+function getSidebarSnapshot() {
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+}
+
+function getSidebarServerSnapshot() {
+  return false;
+}
 
 function isActive(pathname: string, href: string) {
   if (href.split("/").filter(Boolean).length === 1) {
@@ -41,32 +61,26 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({
-  user,
-  children,
-}: {
-  user: User;
-  children: ReactNode;
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
+  const { user } = useCurrentUser();
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const items = navigation[user.role];
+  const collapsed = useSyncExternalStore(
+    subscribeSidebar,
+    getSidebarSnapshot,
+    getSidebarServerSnapshot,
+  );
+  const items = user ? navigation[user.role] : [];
   const activeItem =
     items.find((item) => isActive(pathname, item.href)) ?? items[0];
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (saved !== null) {
-      setCollapsed(saved === "true");
-    }
-  }, []);
+  if (!user) return null;
 
   function toggleSidebar() {
     const next = !collapsed;
-    setCollapsed(next);
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    window.dispatchEvent(new Event(SIDEBAR_EVENT));
   }
 
   async function logout() {
@@ -117,8 +131,6 @@ export function AppShell({
             </button>
           </div>
 
-          <span className="sidebar-role">{roleLabels[user.role]}</span>
-
           <nav
             id="sidebar-navigation"
             className="sidebar-nav"
@@ -144,53 +156,61 @@ export function AppShell({
                 );
               })}
             </div>
-
-            <div className="sidebar-section">
-              <p className="sidebar-label">Akun</p>
-              <Link
-                href="/akun"
-                className="sidebar-link"
-                data-active={pathname === "/akun"}
-                aria-label={collapsed ? "Pengaturan akun" : undefined}
-                title={collapsed ? "Pengaturan akun" : undefined}
-              >
-                <Icon name="user" size={19} />
-                <span className="sidebar-link-text">Pengaturan akun</span>
-              </Link>
-              <button
-                type="button"
-                className="sidebar-link w-full text-left"
-                onClick={logout}
-                disabled={loggingOut}
-                aria-label={collapsed ? "Keluar" : undefined}
-                title={collapsed ? "Keluar" : undefined}
-              >
-                <Icon name="logout" size={19} />
-                <span className="sidebar-link-text">
-                  {loggingOut ? "Keluar..." : "Keluar"}
-                </span>
-              </button>
-            </div>
           </nav>
 
           <div className="sidebar-footer">
             <Link
               href="/akun"
               className="sidebar-account"
-              aria-label={collapsed ? `Akun ${user.name}` : undefined}
-              title={collapsed ? user.name : undefined}
+              aria-label={
+                collapsed
+                  ? `Akun ${user.name}, ${roleLabels[user.role]}`
+                  : undefined
+              }
+              title={
+                collapsed
+                  ? `${user.name} · ${roleLabels[user.role]}`
+                  : undefined
+              }
             >
               <span className="sidebar-avatar" aria-hidden="true">
-                {initials(user.name)}
+                {user.avatar ? (
+                  <Image
+                    src={user.avatar}
+                    alt=""
+                    width={34}
+                    height={34}
+                    unoptimized
+                    className="avatar-image"
+                  />
+                ) : (
+                  initials(user.name)
+                )}
               </span>
               <span className="sidebar-account-text">
                 <span className="sidebar-user-name">{user.name}</span>
                 <span className="sidebar-user-meta">
-                  {user.organizationName ?? roleLabels[user.role]}
+                  {[roleLabels[user.role], user.organizationName]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </span>
               <Icon name="chevronRight" size={16} className="sidebar-account-chevron" />
             </Link>
+
+            <button
+              type="button"
+              className="sidebar-logout"
+              onClick={logout}
+              disabled={loggingOut}
+              aria-label={collapsed ? "Keluar" : undefined}
+              title={collapsed ? "Keluar" : undefined}
+            >
+              <Icon name="logout" size={19} />
+              <span className="sidebar-link-text">
+                {loggingOut ? "Keluar..." : "Keluar"}
+              </span>
+            </button>
           </div>
         </aside>
 
@@ -202,7 +222,7 @@ export function AppShell({
               </div>
               <div className="hidden min-w-0 lg:block">
                 <p className="truncate text-xs text-muted">
-                  {roleLabels[user.role]} / {activeItem.label}
+                  {roleLabels[user.role]} / {activeItem?.label ?? ""}
                 </p>
                 <p className="truncate text-sm font-bold">
                   Halo, {user.name.split(" ")[0]}
@@ -218,7 +238,18 @@ export function AppShell({
                 aria-label={`Akun ${user.name}, ${roleLabels[user.role]}`}
               >
                 <span className="topbar-avatar" aria-hidden="true">
-                  {initials(user.name)}
+                  {user.avatar ? (
+                    <Image
+                      src={user.avatar}
+                      alt=""
+                      width={36}
+                      height={36}
+                      unoptimized
+                      className="avatar-image"
+                    />
+                  ) : (
+                    initials(user.name)
+                  )}
                 </span>
                 <span className="hidden pr-2 sm:block">
                   <span className="topbar-user-name">

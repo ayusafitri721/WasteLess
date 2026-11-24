@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { StatusDiagram } from "@/components/analytics/status-diagram";
+import { ActionNeeded, type ActionItem } from "@/components/dashboard/action-needed";
+import { ExportImpactButton } from "@/components/dashboard/export-impact-button";
+import { PickupCalendar } from "@/components/dashboard/pickup-calendar";
 import { useCurrentUser } from "@/components/auth/auth-provider";
 import { FoodCard } from "@/components/food-card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -34,6 +38,9 @@ export default function ReceiverDashboardPage() {
   const upcoming = useApi<Paginated<Reservation>>(
     "/reservations/my?status=approved&limit=3&page=1",
   );
+  const schedule = useApi<Paginated<Reservation>>(
+    "/reservations/my?limit=50&page=1",
+  );
 
   const availableCount = analytics.data?.reservations.byStatus.approved ?? 0;
   const totalCompleted =
@@ -53,8 +60,43 @@ export default function ReceiverDashboardPage() {
 
   if (!user) return null;
 
+  const actionItems: ActionItem[] = [];
+  const confirmCount = confirmed.data?.items.length ?? 0;
+  if (confirmCount > 0) {
+    actionItems.push({
+      label: "Konfirmasi penerimaan",
+      detail: `${confirmCount} pengambilan sudah diverifikasi penyedia.`,
+      href: "/receiver/distribusi",
+    });
+  }
+  const waitingCount = analytics.data?.reservations.byStatus.pending ?? 0;
+  if (waitingCount > 0) {
+    actionItems.push({
+      label: "Reservasi menunggu",
+      detail: `${waitingCount} permintaan belum disetujui penyedia.`,
+      href: "/receiver/reservasi?status=pending",
+    });
+  }
+  if (user.verificationStatus !== "verified") {
+    actionItems.push({
+      label: "Ajukan verifikasi",
+      detail: "Verifikasi diperlukan sebelum reservasi diterima.",
+      href: "/verifikasi",
+    });
+  }
+
+  const calendarEvents = (schedule.data?.items ?? [])
+    .filter((item) => item.pickupSchedule)
+    .map((item) => ({
+      id: item.id,
+      listingName: populatedListing(item.listingId)?.name ?? "Listing",
+      schedule: item.pickupSchedule as string,
+      statusLabel: reservationStatusLabels[item.status],
+      href: `/receiver/reservasi?status=${item.status}`,
+    }));
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <PageHeader
         kicker="Ringkasan penerima"
         title={`Makanan yang bisa diselamatkan hari ini.`}
@@ -92,10 +134,28 @@ export default function ReceiverDashboardPage() {
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-        <section aria-labelledby="nearby-title">
+      <ActionNeeded items={actionItems} />
+
+      <section className="panel p-5 sm:p-6" aria-label="Diagram status">
+        <StatusDiagram
+          analytics={analytics.data}
+          loading={analytics.loading}
+          error={analytics.error}
+          onRetry={analytics.refetch}
+        />
+        {analytics.data ? (
+          <div className="mt-4 flex justify-end border-t border-line pt-4">
+            <ExportImpactButton analytics={analytics.data} />
+          </div>
+        ) : null}
+      </section>
+
+      <PickupCalendar events={calendarEvents} loading={schedule.loading} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
+        <section aria-labelledby="nearby-title" className="min-w-0">
           <div className="flex items-end justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <p className="kicker">Batas terdekat</p>
               <h2 id="nearby-title" className="display mt-1 text-2xl">
                 Tersedia sekarang
@@ -112,7 +172,7 @@ export default function ReceiverDashboardPage() {
             ) : listings.error ? (
               <ErrorState message={listings.error} onRetry={listings.refetch} />
             ) : listings.data && listings.data.items.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 {listings.data.items.map((listing) => (
                   <FoodCard key={listing.id} listing={listing} />
                 ))}
@@ -134,7 +194,7 @@ export default function ReceiverDashboardPage() {
         </section>
 
         <aside className="space-y-6">
-          <section className="panel p-5" aria-labelledby="pickup-title">
+          <section className="panel p-5 sm:p-6" aria-labelledby="pickup-title">
             <p className="kicker">Jadwal</p>
             <h2 id="pickup-title" className="display mt-1 text-2xl">
               Pengambilan berikutnya
@@ -163,7 +223,7 @@ export default function ReceiverDashboardPage() {
             )}
           </section>
 
-          <section className="panel p-5" aria-labelledby="impact-title">
+          <section className="panel p-5 sm:p-6" aria-labelledby="impact-title">
             <p className="kicker">Dampak tercatat</p>
             <h2 id="impact-title" className="display mt-1 text-2xl">
               Yang sudah diterima
@@ -201,7 +261,7 @@ export default function ReceiverDashboardPage() {
             )}
           </section>
 
-          <section className="panel p-5">
+          <section className="panel p-5 sm:p-6">
             <p className="kicker">Reservasi aktif</p>
             <p className="display mt-1 text-3xl">{availableCount}</p>
             <p className="mt-1 text-sm text-muted">

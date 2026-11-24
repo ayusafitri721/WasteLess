@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { StatusDiagram } from "@/components/analytics/status-diagram";
+import { ActionNeeded, type ActionItem } from "@/components/dashboard/action-needed";
+import { ExportImpactButton } from "@/components/dashboard/export-impact-button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   EmptyState,
@@ -17,18 +20,51 @@ import type {
   Verification,
 } from "@/lib/types";
 
+function percent(value: number, total: number) {
+  return total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+}
+
 export default function AdminDashboardPage() {
   const analytics = useApi<PlatformAnalytics>("/analytics/platform");
   const pending = useApi<Paginated<Verification>>(
     "/admin/verifications?status=pending&limit=5&page=1",
   );
 
+  const completedDistributions =
+    analytics.data?.completedQuantityByUnit.reduce(
+      (sum, item) => sum + item.distributions,
+      0,
+    ) ?? 0;
+  const volumeText =
+    analytics.data?.completedQuantityByUnit
+      .map((item) => formatQuantity(item.quantity, unitLabels[item.unit]))
+      .join(" · ") ?? "";
+
+  const actionItems: ActionItem[] = [];
+  const verificationCount = pending.data?.pagination.total ?? 0;
+  if (verificationCount > 0) {
+    actionItems.push({
+      label: "Tinjau verifikasi",
+      detail: `${verificationCount} pengajuan menunggu keputusan.`,
+      href: "/admin/verifikasi",
+    });
+  }
+  const unverifiedCount =
+    (analytics.data?.users.total ?? 0) - (analytics.data?.users.verified ?? 0);
+  if (unverifiedCount > 0) {
+    actionItems.push({
+      label: "Akun belum terverifikasi",
+      detail: `${unverifiedCount} akun belum lolos verifikasi.`,
+      href: "/admin/verifikasi",
+    });
+  }
+
   if (analytics.error) {
     return <ErrorState message={analytics.error} onRetry={analytics.refetch} />;
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <PageHeader
         kicker="Ringkasan admin"
         title="Antrean dan kondisi platform."
@@ -40,10 +76,26 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section aria-labelledby="verification-queue-title">
+      <ActionNeeded items={actionItems} />
+
+      <section className="panel p-5 sm:p-6" aria-label="Diagram status">
+        <StatusDiagram
+          analytics={analytics.data}
+          loading={analytics.loading}
+          error={analytics.error}
+          onRetry={analytics.refetch}
+        />
+        {analytics.data ? (
+          <div className="mt-4 flex justify-end border-t border-line pt-4">
+            <ExportImpactButton analytics={analytics.data} />
+          </div>
+        ) : null}
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
+        <section aria-labelledby="verification-queue-title" className="min-w-0">
           <div className="flex items-end justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <p className="kicker">Perlu tindakan</p>
               <h2 id="verification-queue-title" className="display mt-1 text-2xl">
                 Pengajuan menunggu
@@ -67,7 +119,10 @@ export default function AdminDashboardPage() {
                       ? null
                       : verification.userId;
                   return (
-                    <li key={verification.id} className="p-4 sm:p-5">
+                    <li
+                      key={verification.id}
+                      className="p-4 transition-colors hover:bg-surface-soft sm:p-5"
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="font-bold">
@@ -108,7 +163,7 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
-        <aside className="panel h-fit p-5" aria-labelledby="users-title">
+        <aside className="panel h-fit p-5 sm:p-6" aria-labelledby="users-title">
           <p className="kicker">Pengguna</p>
           <h2 id="users-title" className="display mt-1 text-2xl">
             Komposisi akun
@@ -152,48 +207,104 @@ export default function AdminDashboardPage() {
             <LoadingState label="Memuat ringkasan platform..." />
           </div>
         ) : analytics.data ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="panel p-5">
-              <p className="text-sm font-bold">Listing</p>
-              <p className="display mt-1 text-3xl">{analytics.data.listings.total}</p>
-              <p className="mt-2 text-sm text-muted">
-                {analytics.data.listings.byStatus.available ?? 0} tersedia ·{" "}
-                {analytics.data.listings.byStatus.completed ?? 0} selesai
-              </p>
-            </div>
-            <div className="panel p-5">
-              <p className="text-sm font-bold">Reservasi</p>
-              <p className="display mt-1 text-3xl">
-                {analytics.data.reservations.total}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {analytics.data.reservations.byStatus.pending ?? 0} menunggu ·{" "}
-                {analytics.data.reservations.byStatus.completed ?? 0} selesai
-              </p>
-            </div>
-            <div className="panel p-5">
-              <p className="text-sm font-bold">Distribusi</p>
-              <p className="display mt-1 text-3xl">
-                {analytics.data.distributions.total}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {analytics.data.distributions.byStatus.completed ?? 0} selesai ·{" "}
-                {analytics.data.distributions.byStatus.failed ?? 0} gagal
-              </p>
-            </div>
-            <div className="panel p-5">
-              <p className="text-sm font-bold">Makanan tersalurkan</p>
-              {analytics.data.completedQuantityByUnit.length > 0 ? (
-                <div className="mt-2 space-y-1">
-                  {analytics.data.completedQuantityByUnit.map((item) => (
-                    <p key={item.unit} className="display text-2xl">
-                      {formatQuantity(item.quantity, unitLabels[item.unit])}
-                    </p>
-                  ))}
+          <div className="panel mt-4 divide-y divide-line">
+            <div className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:p-6">
+              <div>
+                <p className="font-bold">Listing</p>
+                <p className="mt-1 text-sm text-muted">
+                  {analytics.data.listings.byStatus.available ?? 0} tersedia ·{" "}
+                  {analytics.data.listings.byStatus.completed ?? 0} selesai
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="display-soft text-2xl">
+                  {analytics.data.listings.total}
+                </span>
+                <div className="meter flex-1">
+                  <span
+                    style={{
+                      width: `${percent(
+                        analytics.data.listings.byStatus.available ?? 0,
+                        analytics.data.listings.total,
+                      )}%`,
+                    }}
+                  />
                 </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted">Belum ada.</p>
-              )}
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:p-6">
+              <div>
+                <p className="font-bold">Reservasi</p>
+                <p className="mt-1 text-sm text-muted">
+                  {analytics.data.reservations.byStatus.pending ?? 0} menunggu ·{" "}
+                  {analytics.data.reservations.byStatus.completed ?? 0} selesai
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="display-soft text-2xl">
+                  {analytics.data.reservations.total}
+                </span>
+                <div className="meter flex-1">
+                  <span
+                    style={{
+                      width: `${percent(
+                        analytics.data.reservations.byStatus.completed ?? 0,
+                        analytics.data.reservations.total,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:p-6">
+              <div>
+                <p className="font-bold">Distribusi</p>
+                <p className="mt-1 text-sm text-muted">
+                  {analytics.data.distributions.byStatus.completed ?? 0} selesai ·{" "}
+                  {analytics.data.distributions.byStatus.failed ?? 0} gagal
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="display-soft text-2xl">
+                  {analytics.data.distributions.total}
+                </span>
+                <div className="meter flex-1">
+                  <span
+                    style={{
+                      width: `${percent(
+                        analytics.data.distributions.byStatus.completed ?? 0,
+                        analytics.data.distributions.total,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:p-6">
+              <div>
+                <p className="font-bold">Makanan tersalurkan</p>
+                <p className="mt-1 text-sm text-muted">
+                  {volumeText || "Belum ada distribusi yang selesai."}
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="display-soft text-2xl">
+                  {completedDistributions}
+                </span>
+                <div className="meter flex-1">
+                  <span
+                    style={{
+                      width: `${percent(
+                        completedDistributions,
+                        analytics.data.distributions.total,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         ) : null}

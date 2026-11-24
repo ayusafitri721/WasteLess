@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { StatusDiagram } from "@/components/analytics/status-diagram";
+import { ActionNeeded, type ActionItem } from "@/components/dashboard/action-needed";
+import { ExportImpactButton } from "@/components/dashboard/export-impact-button";
+import { PickupCalendar } from "@/components/dashboard/pickup-calendar";
 import { useCurrentUser } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/ui/states";
@@ -25,6 +29,9 @@ export default function ProviderDashboardPage() {
   const pending = useApi<Paginated<Reservation>>(
     "/reservations/my?status=pending&limit=5&page=1",
   );
+  const schedule = useApi<Paginated<Reservation>>(
+    "/reservations/my?limit=50&page=1",
+  );
 
   const impactTotal = useMemo(
     () =>
@@ -37,6 +44,41 @@ export default function ProviderDashboardPage() {
 
   if (!user) return null;
 
+  const actionItems: ActionItem[] = [];
+  const pendingCount = pending.data?.pagination.total ?? 0;
+  if (pendingCount > 0) {
+    actionItems.push({
+      label: "Tinjau reservasi",
+      detail: `${pendingCount} permintaan menunggu keputusan.`,
+      href: "/provider/reservasi?status=pending",
+    });
+  }
+  const readyCount = analytics.data?.reservations.byStatus.ready_for_pickup ?? 0;
+  if (readyCount > 0) {
+    actionItems.push({
+      label: "Periksa kode ambil",
+      detail: `${readyCount} reservasi siap diambil.`,
+      href: "/provider/distribusi",
+    });
+  }
+  if (user.verificationStatus !== "verified") {
+    actionItems.push({
+      label: "Ajukan verifikasi",
+      detail: "Verifikasi diperlukan sebelum listing dapat dibuat.",
+      href: "/verifikasi",
+    });
+  }
+
+  const calendarEvents = (schedule.data?.items ?? [])
+    .filter((item) => item.pickupSchedule)
+    .map((item) => ({
+      id: item.id,
+      listingName: populatedListing(item.listingId)?.name ?? "Listing",
+      schedule: item.pickupSchedule as string,
+      statusLabel: reservationStatusLabels[item.status],
+      href: `/provider/reservasi?status=${item.status}`,
+    }));
+
   if (analytics.error) {
     return (
       <ErrorState message={analytics.error} onRetry={analytics.refetch} />
@@ -44,7 +86,7 @@ export default function ProviderDashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <PageHeader
         kicker="Ringkasan penyedia"
         title={`Selamat bekerja, ${user.name.split(" ")[0]}.`}
@@ -69,10 +111,28 @@ export default function ProviderDashboardPage() {
         </Notice>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-        <section aria-labelledby="queue-title">
+      <ActionNeeded items={actionItems} />
+
+      <section className="panel p-5 sm:p-6" aria-label="Diagram status">
+        <StatusDiagram
+          analytics={analytics.data}
+          loading={analytics.loading}
+          error={analytics.error}
+          onRetry={analytics.refetch}
+        />
+        {analytics.data ? (
+          <div className="mt-4 flex justify-end border-t border-line pt-4">
+            <ExportImpactButton analytics={analytics.data} />
+          </div>
+        ) : null}
+      </section>
+
+      <PickupCalendar events={calendarEvents} loading={schedule.loading} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
+        <section aria-labelledby="queue-title" className="min-w-0">
           <div className="flex items-end justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <p className="kicker">Perlu keputusan</p>
               <h2 id="queue-title" className="display mt-1 text-2xl">
                 Reservasi menunggu
@@ -94,7 +154,10 @@ export default function ProviderDashboardPage() {
                   const listing = populatedListing(reservation.listingId);
                   const receiver = populatedUser(reservation.receiverId);
                   return (
-                    <li key={reservation.id} className="p-4 sm:p-5">
+                    <li
+                      key={reservation.id}
+                      className="p-4 transition-colors hover:bg-surface-soft sm:p-5"
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-bold">
@@ -115,7 +178,7 @@ export default function ProviderDashboardPage() {
                       </div>
                       <Link
                         href="/provider/reservasi"
-                        className="btn btn-secondary mt-4"
+                        className="btn btn-secondary mt-4 w-full sm:w-auto"
                       >
                         Tinjau permintaan
                       </Link>
@@ -140,7 +203,7 @@ export default function ProviderDashboardPage() {
         </section>
 
         <aside className="space-y-6">
-          <section className="panel p-5" aria-labelledby="impact-title">
+          <section className="panel p-5 sm:p-6" aria-labelledby="impact-title">
             <p className="kicker">Dampak tercatat</p>
             <h2 id="impact-title" className="display mt-1 text-2xl">
               Yang sudah tersalurkan
@@ -178,7 +241,7 @@ export default function ProviderDashboardPage() {
             )}
           </section>
 
-          <section className="panel p-5" aria-labelledby="listing-summary-title">
+          <section className="panel p-5 sm:p-6" aria-labelledby="listing-summary-title">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="kicker">Listing</p>

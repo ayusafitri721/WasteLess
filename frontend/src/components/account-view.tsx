@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
+import { processAvatarFile } from "@/lib/avatar";
+import { initials } from "@/lib/format";
 import { roleLabels, verificationLabels } from "@/lib/labels";
 import type { User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,10 @@ export function AccountView() {
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(user?.avatar ?? null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [processingAvatar, setProcessingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
 
@@ -33,14 +40,24 @@ export function AccountView() {
     setSuccess(false);
     setSaving(true);
 
+    const payload: {
+      name: string;
+      phone?: string;
+      organizationName?: string;
+      avatar?: string | null;
+    } = {
+      name,
+      phone: phone.trim() || undefined,
+      organizationName: organizationName.trim() || undefined,
+    };
+    if (avatar !== (user?.avatar ?? null)) {
+      payload.avatar = avatar;
+    }
+
     try {
       const data = await apiFetch<{ user: User }>("/users/me", {
         method: "PATCH",
-        body: JSON.stringify({
-          name,
-          phone: phone.trim() || undefined,
-          organizationName: organizationName.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       setUser(data.user);
       setSuccess(true);
@@ -48,6 +65,27 @@ export function AccountView() {
       setError(submitError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setAvatarError(null);
+    setProcessingAvatar(true);
+    try {
+      const processed = await processAvatarFile(file);
+      setAvatar(processed);
+    } catch (processError) {
+      setAvatarError(
+        processError instanceof Error
+          ? processError.message
+          : "Foto profil gagal diproses.",
+      );
+    } finally {
+      setProcessingAvatar(false);
     }
   }
 
@@ -101,6 +139,65 @@ export function AccountView() {
           <form onSubmit={onSubmit} className="space-y-5" noValidate>
             <FormError error={error} />
             {success ? <Notice tone="success">Profil diperbarui.</Notice> : null}
+
+            <section className="avatar-editor">
+              <span className="avatar-preview" aria-hidden="true">
+                {avatar ? (
+                  <Image
+                    src={avatar}
+                    alt=""
+                    width={64}
+                    height={64}
+                    unoptimized
+                    className="avatar-image"
+                  />
+                ) : (
+                  initials(user.name)
+                )}
+              </span>
+              <div>
+                <p className="font-bold">Foto profil</p>
+                <p className="mt-1 text-xs text-muted">
+                  PNG atau JPEG, maksimal 5 MB. Gambar dikecilkan otomatis
+                  sebelum disimpan.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={processingAvatar}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Pilih foto
+                  </Button>
+                  {avatar ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setAvatar(null);
+                        setAvatarError(null);
+                      }}
+                    >
+                      Hapus foto
+                    </Button>
+                  ) : null}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="sr-only"
+                  aria-label="Pilih foto profil"
+                  onChange={onAvatarChange}
+                />
+                {avatarError ? (
+                  <p className="mt-2 text-xs text-danger" role="alert">
+                    {avatarError}
+                  </p>
+                ) : null}
+              </div>
+            </section>
 
             <Field label="Nama lengkap" htmlFor="account-name">
               <input

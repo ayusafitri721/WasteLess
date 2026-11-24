@@ -47,6 +47,7 @@ export interface User {
   role: Role;
   phone?: string;
   organizationName?: string;
+  avatar?: string | null;
   verificationStatus: VerificationStatus;
   location?: GeoPoint;
   createdAt: string;

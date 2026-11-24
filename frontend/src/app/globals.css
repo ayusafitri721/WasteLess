@@ -151,6 +151,216 @@ body {
   box-shadow: var(--shadow);
 }
 
+[data-today="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.diagram-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.diagram-tabs {
+  display: inline-flex;
+  gap: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  padding: 3px;
+}
+
+.diagram-tab {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0.35rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.diagram-tab[data-active="true"] {
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+}
+
+.diagram-body {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+  margin-top: 1.35rem;
+}
+
+.diagram-donut-wrap {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin-inline: auto;
+}
+
+.diagram-donut {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.diagram-donut-track {
+  fill: none;
+  stroke: var(--brand-soft);
+  stroke-width: 14;
+}
+
+.diagram-donut-segment {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: butt;
+  transition: stroke-width 120ms ease;
+}
+
+.diagram-donut-segment[data-tone="success"] {
+  stroke: var(--brand);
+}
+
+.diagram-donut-segment[data-tone="warning"] {
+  stroke: var(--warning);
+}
+
+.diagram-donut-segment[data-tone="danger"] {
+  stroke: var(--danger);
+}
+
+.diagram-donut-segment[data-tone="info"] {
+  stroke: var(--info);
+}
+
+.diagram-donut-segment[data-tone="neutral"] {
+  stroke: var(--control-line);
+}
+
+.diagram-donut-segment[data-active="true"] {
+  stroke-width: 19;
+}
+
+.diagram-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.diagram-donut-value {
+  color: var(--ink);
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.diagram-donut-label {
+  max-width: 92px;
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.diagram-legend {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.diagram-legend-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0.45rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.diagram-legend-button:hover,
+.diagram-legend-button[data-active="true"] {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+.diagram-swatch {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 3px;
+}
+
+.diagram-swatch[data-tone="success"] {
+  background: var(--brand);
+}
+
+.diagram-swatch[data-tone="warning"] {
+  background: var(--warning);
+}
+
+.diagram-swatch[data-tone="danger"] {
+  background: var(--danger);
+}
+
+.diagram-swatch[data-tone="info"] {
+  background: var(--info);
+}
+
+.diagram-swatch[data-tone="neutral"] {
+  background: var(--control-line);
+}
+
+.diagram-legend-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.diagram-legend-value {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.diagram-detail {
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.diagram-detail-label {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.diagram-detail-value {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+@media (min-width: 640px) {
+  .diagram-body {
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+
 @layer components {
   .btn {
     display: inline-flex;
@@ -498,19 +708,6 @@ body {
   color: var(--sidebar-ink);
 }
 
-.sidebar-role {
-  width: fit-content;
-  margin-top: 0.6rem;
-  border: 1px solid color-mix(in srgb, #9aeac1 28%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, #9aeac1 12%, transparent);
-  padding: 0.18rem 0.55rem;
-  color: #b9f0d3;
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
 .app-topbar {
   position: sticky;
   top: 0;
@@ -662,6 +859,37 @@ body {
   background: var(--sidebar-active);
 }
 
+.sidebar-logout {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  border: 1px solid var(--sidebar-line);
+  border-radius: 10px;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  color: var(--sidebar-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.sidebar-logout:hover {
+  background: var(--sidebar-active);
+  color: var(--sidebar-ink);
+}
+
+.sidebar-logout:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .sidebar-avatar {
   display: grid;
   width: 34px;
@@ -673,6 +901,37 @@ body {
   background: rgba(255, 255, 255, 0.08);
   color: var(--sidebar-ink);
   font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.avatar-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.avatar-preview {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-size: 1rem;
   font-weight: 800;
 }
 
@@ -1383,7 +1642,6 @@ html[data-theme="dark"] .auth-tagline {
     gap: 0.9rem;
   }
 
-  .app-sidebar[data-collapsed="true"] .sidebar-role,
   .app-sidebar[data-collapsed="true"] .sidebar-label,
   .app-sidebar[data-collapsed="true"] .sidebar-link-text,
   .app-sidebar[data-collapsed="true"] .sidebar-account-text,
@@ -1398,6 +1656,11 @@ html[data-theme="dark"] .auth-tagline {
 
   .app-sidebar[data-collapsed="true"] .sidebar-account {
     justify-content: center;
+  }
+
+  .app-sidebar[data-collapsed="true"] .sidebar-logout {
+    justify-content: center;
+    padding-inline: 0;
   }
 
   .app-body {
