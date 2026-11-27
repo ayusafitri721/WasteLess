@@ -202,6 +202,13 @@ export interface PlatformAnalytics {
   completedQuantityByUnit: UnitQuantity[];
 }
 
+export interface PublicStats {
+  users: { providers: number; receivers: number };
+  listings: number;
+  reservations: number;
+  distributions: { total: number; completed: number };
+}
+
 export interface ReadyForPickupResult {
   reservation: Reservation;
   distribution: Distribution;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { backendOrigin } from "@/lib/auth";
 
-const PROVIDERS = new Set(["google", "github"]);
+const PROVIDERS = new Set(["google"]);
 const ROLES = new Set(["provider", "receiver"]);
 
 function fail(request: Request, code: string) {

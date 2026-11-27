@@ -9,6 +9,7 @@ import { parse as parseYaml } from 'yaml';
 import { env } from './config/env.js';
 import { isDatabaseConnected } from './config/database.js';
 import analyticsRoutes from './modules/analytics/analytics.route.js';
+import publicRoutes from './modules/analytics/public.route.js';
 import authRoutes from './modules/auth/auth.route.js';
 import oauthRoutes from './modules/auth/oauth.route.js';
 import distributionRoutes from './modules/distributions/distribution.route.js';
@@ -72,6 +73,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.use('/api/public', publicRoutes);
 app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);

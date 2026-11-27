@@ -47,11 +47,10 @@ Base URL yang dipakai: `http://localhost:5000/api`
 | 35 | `/foods?category=tidak_ada` | GET | 422 | `[isi]` | `[isi]` | `[isi]` |
 | 36 | `/auth/logout` | POST | 204 | `[isi]` | `[isi]` | `[isi]` |
 | 37 | `/auth/oauth/google/start?role=receiver` | GET | 302 atau 503 | `[isi]` | `[isi]` | `[isi]` |
-| 38 | `/auth/oauth/github/start?role=provider` | GET | 302 atau 503 | `[isi]` | `[isi]` | `[isi]` |
-| 39 | `/auth/oauth/exchange` | POST | 400 | `[isi]` | `[isi]` | `[isi]` |
-| 40 | `/auth/register` akun reset | POST | 201 atau 409 | `[isi]` | `[isi]` | `[isi]` |
-| 41 | `/auth/forgot-password` | POST | 200 | `[isi]` | `[isi]` | `[isi]` |
-| 42 | `/auth/reset-password` | POST | 200 | `[isi]` | `[isi]` | `[isi]` |
+| 38 | `/auth/oauth/exchange` | POST | 400 | `[isi]` | `[isi]` | `[isi]` |
+| 39 | `/auth/register` akun reset | POST | 201 atau 409 | `[isi]` | `[isi]` | `[isi]` |
+| 40 | `/auth/forgot-password` | POST | 200 | `[isi]` | `[isi]` | `[isi]` |
+| 41 | `/auth/reset-password` | POST | 200 | `[isi]` | `[isi]` | `[isi]` |
 
 ## Ringkasan operasi CRUD
 

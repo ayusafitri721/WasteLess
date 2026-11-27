@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const OAUTH_NOTICES: Record<string, { title: string; body: string }> = {
   oauth_cancelled: {
     title: "Login dibatalkan",
-    body: "Proses masuk dengan Google atau GitHub dibatalkan.",
+    body: "Proses masuk dengan Google dibatalkan.",
   },
   oauth_not_configured: {
     title: "Login sosial belum aktif",
@@ -17,7 +17,7 @@ const OAUTH_NOTICES: Record<string, { title: string; body: string }> = {
   },
   oauth_unverified: {
     title: "Email belum terverifikasi",
-    body: "Verifikasi email di akun Google atau GitHub Anda, lalu coba lagi.",
+    body: "Verifikasi email Google Anda, lalu coba lagi.",
   },
   oauth_expired: {
     title: "Tautan login kedaluwarsa",

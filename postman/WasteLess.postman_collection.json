@@ -1721,48 +1721,7 @@
           ]
         },
         {
-          "name": "38. Mulai OAuth GitHub",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/oauth/github/start?role=provider",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "oauth",
-                "github",
-                "start"
-              ],
-              "query": [
-                {
-                  "key": "role",
-                  "value": "provider"
-                }
-              ]
-            },
-            "description": "Mengarahkan ke GitHub (302) bila kredensial terisi, atau 503 bila belum."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Start OAuth merespons', function () {",
-                  "  pm.expect([302, 503]).to.include(pm.response.code);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "39. Tukar Kode Tidak Valid",
+          "name": "38. Tukar Kode Tidak Valid",
           "request": {
             "method": "POST",
             "auth": {
@@ -1819,7 +1778,7 @@
       "name": "09 - Lupa Password",
       "item": [
         {
-          "name": "40. Daftar Akun untuk Reset",
+          "name": "39. Daftar Akun untuk Reset",
           "request": {
             "method": "POST",
             "header": [
@@ -1867,7 +1826,7 @@
           ]
         },
         {
-          "name": "41. Minta Token Reset",
+          "name": "40. Minta Token Reset",
           "request": {
             "method": "POST",
             "header": [
@@ -1920,7 +1879,7 @@
           ]
         },
         {
-          "name": "42. Ganti Password",
+          "name": "41. Ganti Password",
           "request": {
             "method": "POST",
             "header": [
@@ -1951,7 +1910,7 @@
                 "reset-password"
               ]
             },
-            "description": "Token diambil otomatis dari request 41. Token hanya bisa dipakai sekali, jadi jalankan request 41 lagi sebelum mengulang request ini."
+            "description": "Token diambil otomatis dari request 40. Token hanya bisa dipakai sekali, jadi jalankan request 40 lagi sebelum mengulang request ini."
           },
           "event": [
             {

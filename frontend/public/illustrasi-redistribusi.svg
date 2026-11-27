@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Ilustrasi wadah makanan berlebih dipindahkan dari dapur ke keranjang penerima">
+  <rect x="24" y="36" width="752" height="378" rx="24" fill="#F4F7F3" />
+
+  <rect x="64" y="306" width="248" height="14" rx="7" fill="#16261D" />
+  <path d="M132 190v-18a24 24 0 0 1 48 0v18" fill="none" stroke="#16261D" stroke-width="8" stroke-linecap="round" />
+  <rect x="112" y="206" width="164" height="94" rx="14" fill="#0B7A43" />
+  <rect x="102" y="190" width="184" height="20" rx="10" fill="#086336" />
+  <circle cx="168" cy="236" r="20" fill="#E6F3EA" />
+  <path d="M198 258c0-14 12-22 26-22s26 8 26 22" fill="#E6F3EA" />
+
+  <path d="M296 250c70 0 104-58 190-44" fill="none" stroke="#0B7A43" stroke-width="6" stroke-linecap="round" stroke-dasharray="12 12" />
+  <path d="m476 194 18 12-18 12" fill="none" stroke="#0B7A43" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+
+  <path d="M526 224h150l-18 90H544z" fill="#E6F3EA" stroke="#0B7A43" stroke-width="6" stroke-linejoin="round" />
+  <path d="M556 224v-20a38 38 0 0 1 76 0v20" fill="none" stroke="#0B7A43" stroke-width="6" stroke-linecap="round" />
+  <circle cx="570" cy="252" r="18" fill="#0B7A43" />
+  <path d="M602 270c0-16 12-26 26-26s26 10 26 26" fill="#0B7A43" />
+
+  <path d="M96 356h608" stroke="#DEE7E0" stroke-width="4" stroke-linecap="round" />
+</svg>

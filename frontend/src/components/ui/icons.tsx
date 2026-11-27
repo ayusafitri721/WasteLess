@@ -30,7 +30,10 @@ export type IconName =
   | "github"
   | "chevronsLeft"
   | "chevronsRight"
-  | "chevronRight";
+  | "chevronRight"
+  | "menu"
+  | "close"
+  | "arrowUp";
 
 const paths: Record<IconName, ReactNode> = {
   home: (
@@ -198,6 +201,25 @@ const paths: Record<IconName, ReactNode> = {
     </>
   ),
   chevronRight: <path d="m9 6 6 6-6 6" />,
+  menu: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6 6 18" />
+    </>
+  ),
+  arrowUp: (
+    <>
+      <path d="M12 20V5" />
+      <path d="m6 11 6-6 6 6" />
+    </>
+  ),
 };
 
 export function Icon({

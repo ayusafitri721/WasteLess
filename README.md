@@ -166,34 +166,31 @@ Jika SMTP belum diisi, token ditampilkan di `data.resetToken` dan halaman lupa p
 
 Token hanya bisa dipakai sekali, kedaluwarsa setelah 15 menit, dan disimpan sebagai hash SHA-256 di database. Setelah password diganti, `tokenVersion` naik sehingga semua token lama otomatis tidak berlaku. Di mode production token tidak pernah dikembalikan di response, jadi SMTP wajib dikonfigurasi.
 
-### Login sosial (Google dan GitHub)
+### Login dengan Google
 
 | Method | Endpoint | Fungsi | Akses |
 |---|---|---|---|
-| GET | `/auth/oauth/:provider/start?role=provider\|receiver` | Memulai alur OAuth dan redirect ke provider | Publik |
-| GET | `/auth/oauth/:provider/callback` | Callback provider, verifikasi state, buat kode sekali pakai | Publik |
+| GET | `/auth/oauth/google/start?role=provider\|receiver` | Memulai alur OAuth dan redirect ke Google | Publik |
+| GET | `/auth/oauth/google/callback` | Callback Google, verifikasi state, buat kode sekali pakai | Publik |
 | POST | `/auth/oauth/exchange` | Menukar kode sekali pakai dengan JWT | Publik |
 
-`provider` bernilai `google` atau `github`. Role pada request start dipakai jika email belum terdaftar.
+Role pada request start dipakai jika email belum terdaftar. Halaman `/masuk` hanya menyediakan tombol Google; login GitHub tidak dipakai.
 
-Tombol Google dan GitHub di halaman `/masuk` sudah aktif, tetapi memerlukan kredensial OAuth. Cara mengaktifkannya:
+Cara mengaktifkan:
 
-1. **Google** — buka [Google Cloud Console](https://console.cloud.google.com/apis/credentials), buat OAuth client ID dengan tipe *Web application*. Tambahkan `http://localhost:5000/api/auth/oauth/google/callback` ke *Authorized redirect URIs*. Salin Client ID dan Client Secret.
-2. **GitHub** — buka *Settings → Developer settings → OAuth Apps → New OAuth App*. Isi *Authorization callback URL* dengan `http://localhost:5000/api/auth/oauth/github/callback`. Salin Client ID dan buat Client Secret.
-3. Isi `backend/.env`:
+1. Buka [Google Cloud Console](https://console.cloud.google.com/apis/credentials), buat OAuth client ID dengan tipe *Web application*. Tambahkan `http://localhost:5000/api/auth/oauth/google/callback` ke *Authorized redirect URIs*. Salin Client ID dan Client Secret.
+2. Isi `backend/.env`:
 
 ```env
 GOOGLE_CLIENT_ID=client-id-dari-google
 GOOGLE_CLIENT_SECRET=client-secret-dari-google
-GITHUB_CLIENT_ID=client-id-dari-github
-GITHUB_CLIENT_SECRET=client-secret-dari-github
 OAUTH_BACKEND_ORIGIN=http://localhost:5000
 ```
 
-4. Restart backend agar `env.js` membaca nilai baru.
-5. Buka `http://localhost:3000/masuk`, pilih peran Penyedia atau Penerima, lalu klik Google atau GitHub.
+3. Restart backend agar `env.js` membaca nilai baru.
+4. Buka `http://localhost:3000/masuk`, pilih peran Penyedia atau Penerima, lalu klik Google.
 
-Alur teknisnya: frontend mengarahkan ke `/api/auth/oauth/start`, backend membuat state bertanda tangan HMAC dan redirect ke provider. Setelah user menyetujui, provider memanggil callback backend. Backend memverifikasi state, menukar kode otorisasi, memastikan email terverifikasi, lalu membuat atau menghubungkan akun berdasarkan email. Token tidak dikirim lewat URL: backend membuat kode sekali pakai yang ditukar route callback frontend menjadi cookie `wasteless_token` httpOnly.
+Alur teknisnya: frontend mengarahkan ke `/api/auth/oauth/start`, backend membuat state bertanda tangan HMAC dan redirect ke Google. Setelah user menyetujui, Google memanggil callback backend. Backend memverifikasi state, menukar kode otorisasi, memastikan email terverifikasi, lalu membuat atau menghubungkan akun berdasarkan email. Token tidak dikirim lewat URL: backend membuat kode sekali pakai yang ditukar route callback frontend menjadi cookie `wasteless_token` httpOnly.
 
 Jika kredensial belum diisi, tombol mengarahkan ke `/masuk?s=oauth_not_configured` dan pesan yang sesuai ditampilkan. Jika email sudah terdaftar lewat register email/password, peran dan status verifikasinya tetap dipertahankan; akun OAuth hanya dihubungkan.
 

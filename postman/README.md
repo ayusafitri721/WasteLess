@@ -6,7 +6,7 @@ Folder ini berisi collection dan environment untuk menguji seluruh endpoint Wast
 
 | File | Kegunaan |
 |---|---|
-| `WasteLess.postman_collection.json` | 42 request yang dikelompokkan sesuai alur bisnis |
+| `WasteLess.postman_collection.json` | 41 request yang dikelompokkan sesuai alur bisnis |
 | `WasteLess.postman_environment.json` | Base URL dan kredensial uji |
 | `hasil-pengujian.md` | Template tabel bukti hasil pengujian yang perlu diisi |
 
@@ -37,8 +37,8 @@ Jalankan request dari atas ke bawah. Nomor di bawah sesuai dengan nama request d
 | 05 Distribusi | 25 sampai 28 | Verifikasi kode, konfirmasi selesai, lihat riwayat |
 | 06 Analitik | 29 sampai 32 | Ringkasan receiver, platform, dan spesifikasi OpenAPI |
 | 07 Uji Error | 33 sampai 36 | Status 401, 404, 422, dan logout |
-| 08 OAuth | 37 sampai 39 | Redirect start Google/GitHub dan penolakan kode invalid |
-| 09 Lupa Password | 40 sampai 42 | Daftar akun uji, minta token, ganti password |
+| 08 OAuth | 37 sampai 38 | Redirect start Google dan penolakan kode invalid |
+| 09 Lupa Password | 39 sampai 41 | Daftar akun uji, minta token, ganti password |
 
 Token berpindah mengikuti request login. Setiap login menimpa variabel `token`, jadi jangan menjalankan request di luar urutan tanpa login ulang sesuai peran yang dibutuhkan.
 
@@ -61,8 +61,8 @@ Collection menyimpan nilai ini lewat test script, jadi tidak perlu diisi manual:
 - Kode pickup hanya muncul sekali di response request 24. Salin nilainya sebelum menjalankan request lain.
 - Request 33 sampai 35 sengaja menguji kegagalan. Status `401`, `404`, dan `422` adalah hasil yang benar.
 - Jalankan request 36 paling akhir karena logout mencabut token aktif.
-- Request 37 dan 38 akan kembali `302` ke provider jika kredensial OAuth sudah diisi di `backend/.env`. Jika belum, keduanya kembali `503`. Uji alur lengkap Google/GitHub tetap dilakukan lewat browser di `http://localhost:3000/masuk`, bukan lewat Postman, karena providers melakukan redirect balik ke callback backend.
-- Request 41 menyimpan `data.resetToken` ke variabel `resetToken` secara otomatis **hanya jika SMTP belum dikonfigurasi**. Jika SMTP sudah aktif, token dikirim ke email dan tidak muncul di response; request 42 harus diisi token dari email tersebut secara manual. Token hanya berlaku sekali, jadi jalankan request 41 lagi sebelum mengulang request 42. Akun yang dipakai adalah `resetEmail` di environment, terpisah dari akun demo utama agar login di request lain tidak terpengaruh.
+- Request 37 akan kembali `302` ke Google jika kredensial OAuth sudah diisi di `backend/.env`. Jika belum, akan kembali `503`. Uji alur lengkap Google tetap dilakukan lewat browser di `http://localhost:3000/masuk`, bukan lewat Postman, karena Google melakukan redirect balik ke callback backend.
+- Request 40 menyimpan `data.resetToken` ke variabel `resetToken` secara otomatis **hanya jika SMTP belum dikonfigurasi**. Jika SMTP sudah aktif, token dikirim ke email dan tidak muncul di response; request 41 harus diisi token dari email tersebut secara manual. Token hanya berlaku sekali, jadi jalankan request 40 lagi sebelum mengulang request 41. Akun yang dipakai adalah `resetEmail` di environment, terpisah dari akun demo utama agar login di request lain tidak terpengaruh.
 
 ## Bukti pengujian
 

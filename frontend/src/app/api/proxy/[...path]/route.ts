@@ -5,6 +5,7 @@ const PUBLIC_PATHS = new Set([
   "auth/register",
   "auth/forgot-password",
   "auth/reset-password",
+  "public/stats",
 ]);
 const BLOCKED_PATHS = new Set(["auth/login", "auth/logout"]);
 

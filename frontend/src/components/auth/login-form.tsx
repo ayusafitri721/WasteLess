@@ -170,7 +170,7 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
         </div>
       </div>
 
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="grid gap-2.5">
         <a
           className="social-btn"
           href={`/api/auth/oauth/start?provider=google&role=${oauthRole}`}
@@ -180,18 +180,11 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
           </span>
           Google
         </a>
-        <a
-          className="social-btn"
-          href={`/api/auth/oauth/start?provider=github&role=${oauthRole}`}
-        >
-          <Icon name="github" size={18} />
-          GitHub
-        </a>
       </div>
 
       <p className="auth-help">
-        Akun baru memakai peran yang dipilih di atas. Email dari Google atau
-        GitHub harus terverifikasi.
+        Akun baru memakai peran yang dipilih di atas. Email Google harus
+        terverifikasi.
       </p>
     </form>
   );
